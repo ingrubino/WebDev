@@ -27,7 +27,7 @@ services:
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
-    platform: linux/amd64   # <-- aggiungi questa riga
+    platform: linux/amd64   # <-- modifica per altro processore
     container_name: phpmyadmin
     environment:
       PMA_HOST: db
