@@ -40,24 +40,27 @@ try {
                 <th>Riga</th>
                 <th>Colonna 1</th>
                 <th>Colonna 2</th>
-                <th>Vettore</th>
             </tr>
             <?php foreach($rows as $row): ?>
             <tr>
                 <td><?php echo htmlspecialchars($row['row_index']); ?></td>
                 <td><?php echo htmlspecialchars($row['col1']); ?></td>
                 <td><?php echo htmlspecialchars($row['col2']); ?></td>
-                <td>
-                    <?php 
-                        // Mostriamo il vettore JSON come elenco
-                        $vector = json_decode($row['vector_values'], true);
-                        echo htmlspecialchars(implode(", ", $vector));
-                    ?>
-                </td>
             </tr>
             <?php endforeach; ?>
         </table>
     <?php endif; ?>
+
+    <p>
+<table>
+<tr>
+    <?php
+    // Mostriamo il vettore JSON come elenco
+    $vector = json_decode($row['vector_values'], true);
+    echo htmlspecialchars(implode(", ", $vector));
+    ?>
+</tr>
+</table>
 
     <p><a href="list_identifiers.php">← Torna agli identificativi</a></p>
 </body>

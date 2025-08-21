@@ -29,10 +29,12 @@ try {
                 <?php 
                     $identif=htmlspecialchars($id);
                     #echo <a href="list_identifiers2.php?identifier=htmlspecialchars($id);" > htmlspecialchars($id); </a> 
-                    echo "<a href=\"list_identifiers2.php?identifier=$identif\" > $identif </a> "
+                    #echo "<a href=\"list_identifiers2.php?identifier=$identif\" > $identif </a> "
+                    echo "<a href=\"storeTable2.php?identifier=$identif\" > $identif </a> "
                 ?>
             </li>
         <?php endforeach; ?>
     </ul>
+    <a href="storeTable2.php"> Aggiungi device </a>
 </body>
 </html>
