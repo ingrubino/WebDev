@@ -1,0 +1,89 @@
+/* Stile generale */
+body {
+  background: radial-gradient(circle at center, #0a0f1c 0%, #000 100%);
+  color: #00ffcc;
+  font-family: 'Orbitron', 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+/* Titoli */
+h1, h2, h3 {
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #00e6ff;
+  text-shadow: 0 0 10px rgba(0, 230, 255, 0.8);
+}
+
+/* Contenitori stile "pannello cockpit" */
+.panel {
+  background: rgba(20, 30, 40, 0.9);
+  border: 2px solid #00ffcc;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 0 15px rgba(0, 255, 200, 0.3);
+}
+
+/* Pulsanti futuristici */
+button, input[type="submit"] {
+  background: linear-gradient(180deg, #00e6ff 0%, #0066cc 100%);
+  border: none;
+  padding: 12px 20px;
+  color: black;
+  font-weight: bold;
+  text-transform: uppercase;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: 0.2s ease-in-out;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+}
+
+button:hover, input[type="submit"]:hover {
+  background: linear-gradient(180deg, #00ffcc 0%, #0044aa 100%);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.9);
+}
+
+/* Campi input stile cockpit */
+input[type="text"], input[type="email"], input[type="password"], select, textarea {
+  background: black;
+  border: 2px solid #00ffcc;
+  color: #00ffcc;
+  padding: 10px;
+  border-radius: 4px;
+  width: 100%;
+  font-family: 'Orbitron', monospace;
+  box-shadow: inset 0 0 5px rgba(0, 255, 255, 0.4);
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: #ff004c;
+  box-shadow: 0 0 12px #ff004c;
+}
+
+/* Indicatori tipo "strumentazione" */
+.indicator {
+  display: inline-block;
+  background: black;
+  border: 2px solid #00ffcc;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  box-shadow: 0 0 10px #00ffcc;
+}
+
+.indicator.alert {
+  border-color: #ff004c;
+  box-shadow: 0 0 12px #ff004c;
+  background: #ff004c;
+}
+
+/* Griglia cockpit */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}

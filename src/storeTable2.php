@@ -38,11 +38,19 @@ if ($identifier) {
 <html lang="it">
 <head>
   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Inserimento Matrice e Vettore</title>
-  <style>
-    table, td, th { border: 1px solid #ccc; border-collapse: collapse; padding: 6px; }
-    table { margin: 10px 0; }
-  </style>
+  <?php
+  #<style>
+  #  table, td, th { border: 1px solid #ccc; border-collapse: collapse; padding: 6px; }
+  #  table { margin: 10px 0; }
+  #</style>
+  ?>
+
+ <!-- Font Orbitron -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Collegamento al tuo foglio di stile -->
+  <link rel="stylesheet" href="stile.css">
 </head>
 <body>
   <h1>Inserisci o modifica dati</h1>

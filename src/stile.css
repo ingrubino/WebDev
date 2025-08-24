@@ -1,0 +1,65 @@
+/* Testo leggibile */
+body {
+  background: radial-gradient(circle at center, #0a0f1c 0%, #000 100%);
+  color: #e6ffe6; /* verde chiaro quasi bianco */
+  font-family: 'Orbitron', 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+/* Titoli */
+h1, h2, h3 {
+  color: #ffffff; /* bianco pieno */
+  text-shadow: 0 0 8px rgba(0, 255, 150, 0.6);
+}
+
+/* Link */
+a {
+  color: #66ff99; /* verde chiaro */
+  text-decoration: none;
+  transition: 0.2s ease-in-out;
+}
+
+a:hover {
+  color: #ffff66; /* giallo */
+  text-shadow: 0 0 10px rgba(255, 255, 100, 0.8);
+}
+
+a:active {
+  color: #ffaa00; /* giallo/arancio quando cliccato */
+}
+
+/* Pannelli cockpit */
+.panel {
+  background: rgba(240, 240, 240, 0.95); /* grigio molto chiaro */
+  border: 2px solid #00ffcc;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 0 15px rgba(0, 255, 200, 0.3);
+  color: #111; /* testo scuro per contrasto */
+}
+
+/* Campi input e form */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  background: #4a4a4a; /* bianco pieno */
+  border: 2px solid #00cc99;
+  color: #46f740; /* testo scuro leggibile */
+  padding: 10px;
+  border-radius: 4px;
+  width: 60%;
+  font-family: 'Orbitron', monospace;
+  box-shadow: inset 0 0 5px rgba(0, 255, 255, 0.2);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: #ffaa00; /* giallo cockpit */
+  box-shadow: 0 0 12px #ffaa00;
+}
