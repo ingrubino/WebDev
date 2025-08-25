@@ -54,6 +54,12 @@ if ($identifier) {
 </head>
 <body>
   <h1>Inserisci o modifica dati</h1>
+  <form action="import.php" method="post" enctype="multipart/form-data">
+    <input type="file" name="csvfile" accept=".csv" required>
+    <br><br>
+    <button type="submit">Carica e importa</button>
+  </form>
+  <p>
 
   <form method="post" action="save.php">
     <label for="identifier">Identificativo:</label>
@@ -66,11 +72,11 @@ if ($identifier) {
         <tr>
           <td><?php echo $i+1; ?></td>
           <td>
-            <input type="text" name="matrix[<?php echo $i; ?>][0]" 
+            <input type="number" step="any" name="matrix[<?php echo $i; ?>][0]" 
                    value="<?php echo htmlspecialchars($matrix[$i][0]); ?>">
           </td>
           <td>
-            <input type="text" name="matrix[<?php echo $i; ?>][1]" 
+            <input type="number" step="any" name="matrix[<?php echo $i; ?>][1]" 
                    value="<?php echo htmlspecialchars($matrix[$i][1]); ?>">
           </td>
         </tr>

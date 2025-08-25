@@ -41,6 +41,7 @@ a:active {
 }
 
 /* Campi input e form */
+input[type="number"],
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -62,4 +63,28 @@ select:focus {
   outline: none;
   border-color: #ffaa00; /* giallo cockpit */
   box-shadow: 0 0 12px #ffaa00;
+}
+
+/* Pulsanti cockpit */
+button,
+input[type="submit"],
+input[type="button"] {
+  background: #f2f2f2;            /* grigio chiaro */
+  border: 2px solid #66ff99;      /* verde chiaro */
+  color: #111;                    /* testo scuro */
+  padding: 12px 20px;
+  font-weight: bold;
+  text-transform: uppercase;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s ease-in-out;
+}
+
+/* Hover: bordo più acceso e sfondo un po' più scuro */
+button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover {
+  background: #e6e6e6;            /* grigio leggermente più scuro */
+  border-color: #00ff99;          /* verde acceso */
+  box-shadow: 0 0 10px rgba(0, 255, 150, 0.6);
 }
