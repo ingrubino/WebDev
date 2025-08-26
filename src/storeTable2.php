@@ -9,6 +9,9 @@ $identifier = $_GET['identifier'] ?? '';
 $matrix = array_fill(0, 10, ["", ""]);
 $vector = array_fill(0, 10, "");
 
+require_once 'GraficoCartesiano.php';
+
+
 if ($identifier) {
     try {
         $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $user, $pass);
@@ -33,41 +36,32 @@ if ($identifier) {
         die("Errore DB: " . $e->getMessage());
     }
 }
-?>
-<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="UTF-8">
-   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inserimento Matrice e Vettore</title>
-  <?php
-  #<style>
-  #  table, td, th { border: 1px solid #ccc; border-collapse: collapse; padding: 6px; }
-  #  table { margin: 10px 0; }
-  #</style>
-  ?>
 
- <!-- Font Orbitron -->
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-  <!-- Collegamento al tuo foglio di stile -->
-  <link rel="stylesheet" href="stile.css">
+include 'header.php';
+?>
 </head>
 <body>
-  <h1>Inserisci o modifica dati</h1>
-  <form action="import.php" method="post" enctype="multipart/form-data">
-    <input type="file" name="csvfile" accept=".csv" required>
-    <br><br>
-    <button type="submit">Carica e importa</button>
+  
+<h1> load data from xml file</h1>
+<div style="border: 1px solid #ccc; padding: 20px; margin: 20px;">
+    <form action="save_xml.php" method="post" enctype="multipart/form-data">
+    <input type="file" name="xmlfile" accept=".xml,.txt" required>
+    <p>
+    <button type="submit">Load and save</button>
+</p>
   </form>
+</div>
   <p>
-
+<h1>Insert or modify data</h1>
+<div style="border: 1px solid #ccc; padding: 20px; margin: 20px;">
+<table><tr><td>
   <form method="post" action="save.php">
-    <label for="identifier">Identificativo:</label>
+    <label for="identifier">Part name:</label>
     <input type="text" name="identifier" id="identifier" required value="<?php echo htmlspecialchars($identifier); ?>">
     
-    <h3>Matrice (10x2)</h3>
+    <h3>Time - Current table</h3>
     <table>
-      <tr><th>Riga</th><th>Colonna 1</th><th>Colonna 2</th></tr>
+      <tr><th>line</th><th>time (ms)</th><th>Current (A)</th></tr>
       <?php for ($i=0; $i<10; $i++): ?>
         <tr>
           <td><?php echo $i+1; ?></td>
@@ -82,17 +76,59 @@ if ($identifier) {
         </tr>
       <?php endfor; ?>
     </table>
+      </td>
+      <td>  
+        <?php
+       // lato B
+        // Creazione dell'istanza
+        $grafico = new GraficoCartesiano($matrix);
 
+        // Personalizzazione (opzionale)
+        $grafico->setTitoloGrafico($identifier . " device")
+                ->setTitoloAsseX("time (ms)")
+                ->setTitoloAsseY("current (A)")
+                ->setDimensioni(600, 400)
+                ->setMargine(70)
+                ->setColori([
+                    'punti' => '#ff6600',
+                    'linea' => '#009900',
+                    'griglia' => '#e0e0e0'
+                ]);
+                if ($identifier)
+                  { ?>
+                        <div style="border: 1px solid #ccc; padding: 20px; margin: 20px;">
+                        <h2>Protection curve</h2>
+                        <?php echo $grafico->generaGrafico(); ?>
+                        </div>
+                    
+                 <?php
+                  }
+                  else
+                  {
+                    echo "no image";
+                  }
+                   
+      ?>
+      </td>
+      </tr></table>
     <h3>Vettore (10 valori)</h3>
+    <table>
     <?php for ($j=0; $j<10; $j++): ?>
+      <tr><td><?php echo $j+1; ?></td><td>
       <input type="text" name="vector[]" size="5" 
              value="<?php echo htmlspecialchars($vector[$j]); ?>">
+    </td></tr>
     <?php endfor; ?>
+    </table>
 
     <br><br>
-    <button type="submit">Salva nel database</button>
+    <button type="submit">Store into the Database</button>
   </form>
-
-  <p><a href="list_identifiers.php">← Torna agli identificativi</a></p>
-</body>
-</html>
+    </div>
+    <div style="border: 1px solid #ccc; padding: 20px; margin: 20px;">
+ <?php
+  echo "<p><a href=\"delete.php?identifier=$identifier\" > <button> remove: $identifier </button> </a></p> "
+  ?>
+  <p><a href="list_identifiers.php">← Return to the main page</a></p>
+    </div>
+  <?php include 'footer.php'; ?>

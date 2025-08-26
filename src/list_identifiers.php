@@ -14,20 +14,13 @@ try {
 } catch (PDOException $e) {
     die("Errore DB: " . $e->getMessage());
 }
+include 'header.php'; //intestazione della pagina
 ?>
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elenco Identificativi</title>
-    <!-- Font Orbitron -->
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-  <!-- Collegamento al tuo foglio di stile -->
-  <link rel="stylesheet" href="stile.css">
 </head>
 <body>
-    <h1>Identificativi presenti nel database</h1>
+    <h1>List of devices stored into the database</h1>
+    <P>
+        select the device to view/modify or add a new device </p>
     <ul>
         <?php foreach($identifiers as $id): ?>
             <li>
@@ -40,6 +33,5 @@ try {
             </li>
         <?php endforeach; ?>
     </ul>
-    <a href="storeTable2.php"> Aggiungi device </a>
-</body>
-</html>
+    <a href="storeTable2.php"> <button> Add a new device </button></a>
+    <?php include 'footer.php'; ?>
