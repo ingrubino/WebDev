@@ -18,7 +18,7 @@ include 'header.php'; //intestazione della pagina
 ?>
 </head>
 <body>
-    <h1>List of devices stored into the database</h1>
+    <h1>List of devices</h1>
     <P>
         select the device to view/modify or add a new device </p>
     <ul>
