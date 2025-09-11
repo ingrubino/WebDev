@@ -260,13 +260,11 @@ Al primo avvio il container **mariadb** eseguirà automaticamente lo script e la
 ---
 
 # Test
-per il test: http://localhost:8080/index2.php
+per il test: http://localhost:8080/list_identifiers.php
 oppure: http://localhost:8080
 
 per PhPmyAdmin:
 http://localhost:8081
-
-http://localhost:8080/list_identifiers2.php?identifier=luigi
 
 # Formato tabella mySQL
 ```SQL
