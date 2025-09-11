@@ -1,8 +1,6 @@
 # WebDev
 esercitazioni sviluppo web 
 
-Perfetto 👍 ora è chiarissimo: se hai un progetto su GitHub con dentro un `docker-compose.yaml`, puoi ricostruire tutto da riga di comando in pochi passaggi.
-
 ---
 
 ## 🚀 Procedura
