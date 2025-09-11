@@ -80,7 +80,13 @@ http://localhost:8080/list_identifiers2.php?identifier=luigi
 
 # Formato tabella mySQL
 ```SQL
-CREATE TABLE dataset ( id INT AUTO_INCREMENT PRIMARY KEY, identifier VARCHAR(100) NOT NULL, row_index INT NOT NULL, col1 VARCHAR(100), col2 VARCHAR(100), vector_values JSON, -- MySQL 5.7+ supporta JSON created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );
+CREATE TABLE dataset ( id INT AUTO_INCREMENT PRIMARY KEY, 
+identifier VARCHAR(100) NOT NULL, 
+row_index INT NOT NULL, 
+col1 VARCHAR(100), 
+col2 VARCHAR(100), 
+vector_values JSON, -- MySQL 5.7+ supporta JSON created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
+);
 ```
 ---
 
