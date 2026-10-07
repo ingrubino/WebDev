@@ -115,6 +115,16 @@ table { border-collapse: collapse; }
   .vector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* Selettore file e finestra di conferma (testi propri, non quelli del browser) */
+.file-picker { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+dialog.confirm {
+  background: var(--panel-bg); color: var(--text); border: 2px solid var(--accent-strong);
+  border-radius: 8px; padding: 20px; max-width: min(440px, 90vw);
+  box-shadow: 0 0 20px rgba(0, 255, 200, 0.4);
+}
+dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.7); }
+dialog.confirm p { margin-top: 0; }
+
 /* Configurazione canali: selettore AC/DC */
 .channels select { max-width: 360px; }
 .channels td:first-child { width: 80px; }

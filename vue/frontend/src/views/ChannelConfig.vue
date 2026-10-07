@@ -5,6 +5,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/api/client'
 import { channelRules, toChannelForm, validateChannels } from '@/validation/channels'
+import { askConfirm } from '@/confirm'
 
 const rows = ref(toChannelForm())
 const devices = ref([])
@@ -83,8 +84,8 @@ async function setDevices() {
   }
 }
 
-onBeforeRouteLeave(() => {
-  if (dirty.value && !confirm('You have unsaved changes. Leave anyway?')) return false
+onBeforeRouteLeave(async () => {
+  if (dirty.value && !await askConfirm('You have unsaved changes. Leave anyway?', { okLabel: 'Leave' })) return false
 })
 </script>
 

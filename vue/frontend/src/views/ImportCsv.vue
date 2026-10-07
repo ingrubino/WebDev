@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 import { api } from '@/api/client'
 import { parseDevicesCsv } from '@/validation/parsers'
 import { toFormModel, validateDevice } from '@/validation/device'
+import FilePicker from '@/components/FilePicker.vue'
 
 const items = ref([])
 const fileName = ref('')
@@ -13,9 +14,7 @@ const running = ref(false)
 
 const validItems = computed(() => items.value.filter((it) => it.valid && it.status !== 'done'))
 
-async function onFile(event) {
-  const file = event.target.files[0]
-  if (!file) return
+async function onFile(file) {
   fileName.value = file.name
   error.value = ''
   try {
@@ -50,7 +49,7 @@ async function importAll() {
   <h1>Import devices from CSV</h1>
   <section class="panel">
     <p>One line per point: <code>identifier,time,current,v1,v2,…</code> (separator <code>,</code> or <code>;</code>). Lines with the same identifier form one device.</p>
-    <input type="file" accept=".csv,.txt" @change="onFile" />
+    <FilePicker accept=".csv,.txt" @select="onFile" />
     <p v-if="error" class="error">{{ error }}</p>
   </section>
 

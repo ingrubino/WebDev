@@ -6,6 +6,8 @@ import { api } from '@/api/client'
 import { emptyDevice, plottablePoints, rules, toFormModel, validateDevice } from '@/validation/device'
 import { parseDeviceXml } from '@/validation/parsers'
 import FormField from '@/components/FormField.vue'
+import FilePicker from '@/components/FilePicker.vue'
+import { askConfirm } from '@/confirm'
 import CartesianChart from '@/components/CartesianChart.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
@@ -51,10 +53,7 @@ async function load() {
 }
 watch(() => props.id, load, { immediate: true })
 
-async function onXmlFile(event) {
-  const file = event.target.files[0]
-  event.target.value = ''
-  if (!file) return
+async function onXmlFile(file) {
   try {
     const model = toFormModel(parseDeviceXml(await file.text()))
     form.value = model
@@ -85,7 +84,8 @@ async function save() {
         ? await api.updateDevice(originalId.value, device)
         : await api.createDevice(device)
     } catch (e) {
-      if (e.status === 409 && !originalId.value && confirm(`Device "${device.identifier}" already exists. Overwrite it?`)) {
+      if (e.status === 409 && !originalId.value
+          && await askConfirm(`Device "${device.identifier}" already exists. Overwrite it?`, { okLabel: 'Overwrite', danger: true })) {
         saved = await api.updateDevice(device.identifier, device)
       } else {
         throw e
@@ -105,7 +105,7 @@ async function save() {
 }
 
 async function remove() {
-  if (!confirm(`Remove device "${originalId.value}"?`)) return
+  if (!await askConfirm(`Remove device "${originalId.value}"?`, { okLabel: 'Remove', danger: true })) return
   try {
     await api.deleteDevice(originalId.value)
     snapshot.value = JSON.stringify(form.value)
@@ -115,8 +115,8 @@ async function remove() {
   }
 }
 
-function confirmLeave() {
-  if (dirty.value && !confirm('You have unsaved changes. Leave anyway?')) return false
+async function confirmLeave() {
+  if (dirty.value && !await askConfirm('You have unsaved changes. Leave anyway?', { okLabel: 'Leave' })) return false
 }
 onBeforeRouteLeave(confirmLeave)
 onBeforeRouteUpdate(confirmLeave)
@@ -130,7 +130,7 @@ onBeforeRouteUpdate(confirmLeave)
   <template v-else>
     <section class="panel">
       <h2>Load data from XML file</h2>
-      <input type="file" accept=".xml,.txt" @change="onXmlFile" />
+      <FilePicker accept=".xml,.txt" @select="onXmlFile" />
     </section>
 
     <form class="panel" novalidate @submit.prevent="save">

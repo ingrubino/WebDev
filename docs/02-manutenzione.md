@@ -14,6 +14,7 @@ Come far evolvere l'interfaccia senza rompere quello che funziona: dove sta cosa
 4. **Configurazione fuori dal codice**: password, porte e nomi delle immagini solo in `docker/.env`, che non va mai su GitHub (si versiona `docker/.env.example`).
 5. **Ogni modifica si prova prima sul Mac**, poi si porta sul Raspberry con la procedura di rilascio.
 6. **Cambiamenti piccoli**: una funzione, un branch, un commit (o una pull request) che si può annullare da solo.
+7. **Tutti i testi dell'interfaccia sono in inglese.** Non usare mai `<input type="file">` visibile né `confirm()` / `alert()` del browser: il browser li mostra nella sua lingua (es. "Nessun file selezionato", "Annulla"). Usare al loro posto `FilePicker.vue` e `askConfirm()`.
 
 ---
 
@@ -40,6 +41,16 @@ Come far evolvere l'interfaccia senza rompere quello che funziona: dove sta cosa
 | come vengono inviati i parametri (oggi: stampa a video) | `vue/canbus/can_sender.py` (classe `ConsoleSender`, registro `SENDERS`, scelto con la variabile `CAN_SENDER`) |
 | le librerie Python del servizio | `vue/canbus/requirements.txt` (oggi solo PyMySQL) |
 | container, porte, versioni delle immagini | `docker/compose.yml`, `docker/frontend.Dockerfile`, `vue/api/Dockerfile`, `docker/.env` |
+
+### Componenti da riutilizzare
+
+| Componente | Uso |
+|---|---|
+| `components/FormField.vue` | qualsiasi campo di input con il suo messaggio d'errore |
+| `components/CartesianChart.vue` | qualsiasi grafico X/Y |
+| `components/FilePicker.vue` | scelta di un file: pulsante "Choose file" e testo "No file selected" o nome del file; proprietà `accept` e `label`, evento `select` |
+| `components/ConfirmDialog.vue` + `askConfirm()` da `src/confirm.js` | richiesta di conferma al posto di `window.confirm()`: `await askConfirm('Remove device?', { okLabel: 'Remove', danger: true })` restituisce `true` o `false`; pulsanti ad es. Leave/Cancel, Remove/Cancel, Overwrite/Cancel |
+| classi `.panel`, `.list`, `.split`, `.message`, `.indicator` in `assets/cockpit.css` | riquadri, tabelle, messaggi, spie di stato |
 
 ---
 

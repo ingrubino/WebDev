@@ -3,6 +3,7 @@
 // (sostituisce header.php e footer.php).
 import { onMounted, onUnmounted, ref } from 'vue'
 import { api } from './api/client'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 
 const online = ref(null)
 let timer
@@ -31,4 +32,5 @@ onUnmounted(() => clearInterval(timer))
     <RouterView />
   </main>
   <footer>© {{ new Date().getFullYear() }} Device Console</footer>
+  <ConfirmDialog />
 </template>

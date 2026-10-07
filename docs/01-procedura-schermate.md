@@ -164,9 +164,13 @@ Riutilizzare prima di creare:
 |---|---|
 | `components/FormField.vue` | qualsiasi campo di input con il suo messaggio d'errore |
 | `components/CartesianChart.vue` | qualsiasi grafico X/Y (curve, andamento delle misure nel tempo) |
+| `components/FilePicker.vue` | scelta di un file: pulsante "Choose file" e testo "No file selected" o nome del file; proprietà `accept` e `label`, evento `select` |
+| `components/ConfirmDialog.vue` + `askConfirm()` da `src/confirm.js` | richiesta di conferma al posto di `window.confirm()`: `await askConfirm('Remove device?', { okLabel: 'Remove', danger: true })` restituisce `true` o `false`; pulsanti ad es. Leave/Cancel, Remove/Cancel, Overwrite/Cancel |
 | classi `.panel`, `.list`, `.split`, `.message`, `.indicator` in `assets/cockpit.css` | riquadri, tabelle, messaggi, spie di stato |
 
 Se un elemento si ripete in due schermate, estrarlo in `components/`.
+
+**Tutti i testi dell'interfaccia sono in inglese.** Non usare mai `<input type="file">` visibile né `confirm()` / `alert()` del browser: il browser li mostra nella sua lingua (es. "Nessun file selezionato", "Annulla"). Usare al loro posto `FilePicker.vue` e `askConfirm()`.
 
 ---
 
@@ -193,6 +197,7 @@ Una schermata è finita quando:
 - [ ] l'API rifiuta gli stessi dati non validi anche se chiamata direttamente con `curl`;
 - [ ] gli stati vuoto, caricamento ed errore sono visibili (provare fermando il database: `docker compose stop db`);
 - [ ] resta leggibile su uno schermo piccolo (finestra stretta o telefono);
+- [ ] tutti i testi visibili sono in inglese, senza finestre o controlli nativi del browser (`confirm()`, `alert()`, `<input type="file">`);
 - [ ] `npm test` e `npm run build` passano senza errori;
 - [ ] è stata provata nello stack Docker completo (`docker compose up -d --build`) sul Mac;
 - [ ] la modifica è annotata nel `CHANGELOG.md`.
