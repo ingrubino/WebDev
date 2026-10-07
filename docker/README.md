@@ -6,6 +6,7 @@ Questa cartella contiene tutto il necessario per eseguire l'interfaccia Vue (`..
 |---|---|---|---|
 | `web` | `webdev/web` (da `frontend.Dockerfile`) | build Vue + nginx; inoltra `/api/` al backend | `8080` |
 | `api` | `webdev/api` (da `../vue/api/Dockerfile`) | API PHP JSON | interna |
+| `canbus` | `webdev/canbus` (da `../vue/canbus/Dockerfile`) | programma Python "Set devices": invia i parametri ai dispositivi (`CAN_SENDER`, default `console`) | interna (8000) |
 | `db` | `mariadb:11.4` | database; schema da `../vue/db/init` al primo avvio | `127.0.0.1:3306` |
 | `phpmyadmin` | `phpmyadmin:5` | amministrazione DB (profilo `tools`) | `8081` |
 | `legacy` | `webdev/api` + `../src` | vecchia app PHP per confronto (profilo `legacy`) | `8082` |
@@ -101,7 +102,7 @@ Sul Mac:
 
 ```bash
 PLATFORMS=linux/arm64 docker buildx bake -f docker-bake.hcl --allow=fs.read=.. --load
-docker save webdev/web:latest webdev/api:latest | gzip > webdev-arm64.tar.gz
+docker save webdev/web:latest webdev/api:latest webdev/canbus:latest | gzip > webdev-arm64.tar.gz
 scp webdev-arm64.tar.gz pi@<ip-del-raspberry>:~/WebDev/docker/
 ```
 
@@ -121,3 +122,27 @@ Su un Mac M3 le immagini native sono già `arm64`, quindi anche un semplice `doc
 - La porta 3306 è esposta solo su `127.0.0.1`; phpMyAdmin chiede utente e password (niente login automatico come root).
 - Il profilo `legacy` serve la vecchia cartella `src`, che si collega come `root`/`root`: funziona solo se in `.env` metti `DB_ROOT_PASSWORD=root`. Da usare solo in locale durante la migrazione.
 - I vecchi `Dockerfile`, `docker-compose.yaml` e `docker-compose_raspberry.yaml` nella radice non sono stati modificati.
+
+## Problemi frequenti
+
+### Download interrotto: `failed to copy: httpReadSeeker: failed open ... EOF`
+
+Docker ha perso la connessione mentre scaricava un'immagine da Docker Hub (spesso `mariadb`). Non è un errore del compose. Prova in quest'ordine:
+
+1. Scarica l'immagine da sola, poi rilancia lo stack:
+   ```bash
+   docker pull mariadb:11.4
+   docker compose up -d --build
+   ```
+2. Chiudi l'eventuale VPN o proxy e riavvia Docker Desktop (icona della balena → Restart).
+3. Se l'errore resta: Docker Desktop → Settings → General, disattiva **"Use containerd for pulling and storing images"**, premi *Apply & restart* e riprova.
+
+### `container webdev-db-1 is unhealthy` e compaiono i container `mysql` / `php-apache`
+
+Il vecchio stack nella radice (`docker-compose.yaml`) e le prime versioni di questo usavano lo stesso nome di progetto, `webdev`, e quindi lo stesso volume del database: MariaDB non riesce ad avviarsi sui file del vecchio MySQL. Ora questo stack si chiama `webdev-vue` e ha un volume suo. Per pulire una volta sola:
+
+```bash
+cd WebDev/docker
+docker compose -p webdev down --remove-orphans   # rimuove i container del vecchio progetto (i volumi restano)
+docker compose up -d --build
+```

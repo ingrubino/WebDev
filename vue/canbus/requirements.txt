@@ -1,0 +1,2 @@
+PyMySQL==1.2.3
+# python-can==4.*   # da attivare quando si passa al bus CAN reale (vedi can_sender.py)

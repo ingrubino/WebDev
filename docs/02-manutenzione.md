@@ -36,6 +36,9 @@ Come far evolvere l'interfaccia senza rompere quello che funziona: dove sta cosa
 | numero di canali, modalità ammesse (AC/DC), modalità predefinita | `vue/config/channel-rules.json` |
 | come viene controllata la configurazione dei canali | `vue/frontend/src/validation/channels.js` **e** `vue/api/src/ChannelValidator.php` |
 | la schermata dei canali e la sua tabella | `vue/frontend/src/views/ChannelConfig.vue`, `vue/api/src/ChannelRepository.php`, tabella `channel_config` (`vue/db/init/02_channel_config.sql`) |
+| cosa fa "Set devices" (lettura di canali e curve dal database) | `vue/canbus/set_devices.py` |
+| come vengono inviati i parametri (oggi: stampa a video) | `vue/canbus/can_sender.py` (classe `ConsoleSender`, registro `SENDERS`, scelto con la variabile `CAN_SENDER`) |
+| le librerie Python del servizio | `vue/canbus/requirements.txt` (oggi solo PyMySQL) |
 | container, porte, versioni delle immagini | `docker/compose.yml`, `docker/frontend.Dockerfile`, `vue/api/Dockerfile`, `docker/.env` |
 
 ---
@@ -194,6 +197,26 @@ Prima si compila la scheda ([01-procedura-schermate.md](01-procedura-schermate.m
 
 Per una schermata di **monitoraggio** con aggiornamento periodico, copiare lo schema di `App.vue`: `setInterval` in `onMounted`, `clearInterval` in `onUnmounted`.
 
+### Usare "Set devices" e passare al bus CAN reale
+
+Il servizio `canbus` (`vue/canbus/`) è un programma Python in un container a parte. L'API lo chiama quando si preme "Set devices" (`POST /api/channels/apply` → `http://canbus:8000/apply`); risponde anche su `GET /health`. Si può lanciare anche a mano:
+
+```bash
+docker compose logs -f canbus                         # vedere cosa viene inviato
+docker compose exec canbus python set_devices.py      # un invio da terminale, senza interfaccia
+```
+
+Per ogni canale usato legge da `channel_config` il dispositivo e la modalità AC/DC, poi da `dataset` la curva tempo/corrente e il vettore, e li passa al "sender". Oggi l'unico sender è `ConsoleSender`, che stampa a video. Per inviare davvero sul bus CAN:
+
+1. In `vue/canbus/can_sender.py` scrivere una classe con gli stessi metodi di `ConsoleSender` (`send_channel(channel, device, mode, curve, vector)` e `close()`) che usa la libreria python-can; nel file c'è già un esempio commentato (`CanBusSender`). La codifica dei messaggi (ID, formato dei dati) dipende dal protocollo dei dispositivi e va definita.
+2. Registrarla nel dizionario `SENDERS` con un nome, es. `"socketcan"`.
+3. In `vue/canbus/requirements.txt` attivare la riga `python-can==4.*`.
+4. In `docker/.env` impostare `CAN_SENDER=socketcan`.
+5. Dare al container l'accesso all'interfaccia `can0` del Raspberry: nel servizio `canbus` di `docker/compose.yml` aggiungere `network_mode: host` (con la rete host il nome `canbus` non è più raggiungibile dagli altri container: nel servizio `api` di `compose.yml` cambiare `CANBUS_URL` con l'IP del Raspberry sulla rete locale, es. `http://192.168.1.50:8000`). L'interfaccia `can0` va attivata sul Raspberry (es. `sudo ip link set can0 up type can bitrate 500000`).
+6. `docker compose up -d --build` e prova con `docker compose exec canbus python set_devices.py`.
+
+Sul Mac non c'è un bus CAN: lì si lascia `CAN_SENDER=console`.
+
 ### Modificare il database
 
 Gli script in `vue/db/init/` girano **solo alla prima installazione** (volume del database vuoto). Per le installazioni già attive:
@@ -328,6 +351,8 @@ Da controllare a ogni rilascio, e sempre prima di esporre il sistema fuori dalla
 | Sintomo | Causa probabile | Soluzione |
 |---|---|---|
 | Spia "offline" nell'interfaccia | API ferma o database non ancora pronto | `docker compose ps`, `docker compose logs api db` |
+| "Set devices" risponde con errore 502 | servizio `canbus` fermo o in errore | `docker compose ps canbus`, `docker compose logs canbus`, poi `docker compose up -d canbus` |
+| "Set devices" risponde con errore 409 | un invio precedente è ancora in corso | attendere e riprovare |
 | `imposta DB_PASSWORD nel file .env` | manca `docker/.env` | `cp .env.example .env` nella cartella `docker/` |
 | Una soglia cambiata non ha effetto | il frontend legge le regole alla build | `docker compose up -d --build` |
 | La tabella non esiste | volume del database creato prima dello schema | applicare `vue/db/init/01_schema.sql` a mano come una migrazione oppure, **perdendo i dati**, `docker compose down -v` e riavviare |

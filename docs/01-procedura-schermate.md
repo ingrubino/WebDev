@@ -108,7 +108,7 @@ La tabella "dati inseriti" diventa direttamente le regole di validazione del Pas
   | dispositivo | menu a discesa | no ("— not used —") | deve essere un dispositivo esistente; lo stesso dispositivo può stare su più canali | `Unknown device` |
   | modalità | AC / DC | sì | uno dei valori di `modes`; predefinito `AC` | `Choose AC or DC` |
 
-- **Azioni:** Save configuration, Discard changes.
+- **Azioni:** Save configuration, Discard changes, **Set devices**. "Set devices" avvia il programma Python `canbus`, che legge la configurazione salvata e, per ogni canale usato, la curva e il vettore del dispositivo, e li invia ai dispositivi esterni (per ora li stampa nel terminale). Il pulsante è disattivato se ci sono modifiche non salvate ("Save the configuration first") o se nessun canale è usato; il risultato compare nel pannello "Set devices output".
 - **Dati salvati:** tabella `channel_config` (`channel` 1–12, `device` o `NULL`, `mode` `AC`/`DC`, `updated_at`). Rinominare un dispositivo aggiorna i canali; eliminarlo li lascia liberi (`NULL`).
 - **Regole configurabili:** `vue/config/channel-rules.json` (`channels`: numero di righe, `modes`, `defaultMode`); dopo una modifica serve `docker compose up -d --build`.
 
@@ -140,6 +140,7 @@ API attuale, per riferimento:
 | `DELETE` | `/api/devices/<nome>` | `204` oppure `404` |
 | `GET` | `/api/channels` | `{ channels: [{ channel, device, mode }, ...] }`, sempre 12 righe |
 | `PUT` | `/api/channels` | sostituisce tutta la configurazione `{ channels: [{ device, mode }, ...] }`; `200`, `422` |
+| `POST` | `/api/channels/apply` | "Set devices": `{ sent, channels: [{ channel, device, mode, status, points }], log }`; `502` se il servizio `canbus` non risponde, `409` se un invio è già in corso |
 
 Le chiavi degli errori sono le stesse del form (`identifier`, `matrix`, `matrix.3.0`, `vector.2`, `channels.4.device`, `channels.4.mode`): così l'errore restituito dal server compare accanto al campo giusto.
 

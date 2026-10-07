@@ -9,6 +9,7 @@ Gira in container Docker ed è pensata per un **Raspberry Pi**; si prova prima s
 | Interfaccia | Vue 3 + Vite, servita da nginx |
 | API | PHP 8.2 (JSON) su Apache |
 | Database | MariaDB 11.4 (LTS) |
+| Invio ai dispositivi ("Set devices") | Python 3 (`canbus`), oggi stampa a video; in futuro bus CAN |
 | Strumenti (opzionali) | phpMyAdmin |
 
 ```mermaid
@@ -16,6 +17,9 @@ flowchart LR
     B[Browser] -->|:8080| W[web<br/>nginx + Vue]
     W -->|/api| A[api<br/>PHP]
     A --> D[(db<br/>MariaDB)]
+    A -->|Set devices| C[canbus<br/>Python]
+    C --> D
+    C -.->|futuro| X[bus CAN]
     P[phpMyAdmin<br/>:8081, opzionale] --> D
 ```
 
@@ -144,6 +148,7 @@ Tutte le impostazioni stanno nel file `docker/.env` (creato da `docker/.env.exam
 | `DB_USER` | `app` | Utente usato dall'API |
 | `DB_PASSWORD` | *(obbligatoria)* | Password dell'utente dell'API |
 | `DB_ROOT_PASSWORD` | *(obbligatoria)* | Password di amministrazione del database |
+| `CAN_SENDER` | `console` | Come "Set devices" invia i parametri: `console` stampa nel log del servizio `canbus` |
 | `IMAGE_PREFIX` | `webdev` | Prefisso delle immagini (es. `ghcr.io/utente/webdev` per pubblicarle) |
 | `TAG` | `latest` | Versione delle immagini |
 
@@ -170,7 +175,15 @@ Non lasciare phpMyAdmin attivo sul Raspberry se non serve.
 | Nuovo dispositivo | `/devices/new` | inserimento manuale o da file XML, con controllo dei valori e grafico |
 | Dettaglio | `/devices/<nome>` | modifica, rinomina, grafico della curva, eliminazione con conferma |
 | Import CSV | `/import` | importazione di più dispositivi con anteprima; vengono salvati solo quelli validi |
-| Configurazione canali | `/channels` | 12 canali: per ognuno un dispositivo dell'elenco e la modalità AC/DC; salvati nella tabella `channel_config` per il programma di backend |
+| Configurazione canali | `/channels` | 12 canali: per ognuno un dispositivo dell'elenco e la modalità AC/DC; salvati nella tabella `channel_config`. Il pulsante **Set devices** invia a ogni dispositivo la sua curva e la modalità |
+
+Per ora "Set devices" stampa i parametri invece di inviarli sul bus CAN. Si vedono nel pannello "Set devices output" della pagina oppure nel terminale:
+
+```bash
+cd docker
+docker compose logs -f canbus                         # output degli invii
+docker compose exec canbus python set_devices.py      # invio lanciato a mano
+```
 
 La spia in alto a destra indica se API e database rispondono (verde "online").
 
