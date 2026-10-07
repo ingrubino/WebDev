@@ -1,0 +1,124 @@
+/* Stile "cockpit" ripreso da stile.css della versione originale. */
+:root {
+  --bg: #0a0f1c;
+  --text: #e6ffe6;
+  --accent: #66ff99;
+  --accent-strong: #00ffcc;
+  --warn: #ffaa00;
+  --error: #ff5c7a;
+  --panel-bg: rgba(20, 30, 40, 0.9);
+}
+
+* { box-sizing: border-box; }
+
+html { background: #000; }
+
+body {
+  background: radial-gradient(circle at center, var(--bg) 0%, #000 100%);
+  color: var(--text);
+  font-family: 'Orbitron', 'Segoe UI', sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+
+h1, h2, h3 { color: #fff; text-shadow: 0 0 8px rgba(0, 255, 150, 0.6); }
+h2 { font-size: 1.1rem; }
+h3 { font-size: 1rem; }
+
+a { color: var(--accent); text-decoration: none; transition: 0.2s ease-in-out; }
+a:hover { color: #ffff66; text-shadow: 0 0 10px rgba(255, 255, 100, 0.8); }
+
+/* Barra superiore */
+.topbar {
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  padding: 12px 20px; border-bottom: 1px solid var(--accent-strong);
+  background: rgba(0, 0, 0, 0.5);
+}
+.topbar .brand { font-weight: 700; font-size: 1.1rem; color: #fff; }
+.topbar nav { display: flex; gap: 16px; flex: 1; }
+.topbar nav a.router-link-exact-active { color: var(--warn); }
+.status { display: flex; align-items: center; font-size: 0.8rem; }
+
+footer { text-align: center; padding: 20px; font-size: 0.75rem; opacity: 0.7; }
+
+/* Pannelli */
+.panel {
+  background: var(--panel-bg);
+  border: 2px solid var(--accent-strong);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 0 15px rgba(0, 255, 200, 0.3);
+}
+
+/* Campi */
+input[type="text"], input[type="search"], select, textarea {
+  background: #1d1d1d;
+  border: 2px solid #00cc99;
+  color: #46f740;
+  padding: 8px 10px;
+  border-radius: 4px;
+  width: 100%;
+  font-family: 'Orbitron', monospace;
+}
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--warn); box-shadow: 0 0 12px var(--warn); }
+
+.field { display: block; margin: 4px 0; }
+.field-label { display: block; font-size: 0.8rem; margin-bottom: 4px; }
+.field.invalid input { border-color: var(--error); box-shadow: 0 0 8px var(--error); }
+.error { color: var(--error); font-size: 0.8rem; }
+small.error { display: block; margin-top: 2px; }
+.hint { opacity: 0.8; font-size: 0.8rem; }
+
+/* Pulsanti */
+button {
+  background: #f2f2f2;
+  border: 2px solid var(--accent);
+  color: #111;
+  padding: 10px 18px;
+  font-weight: bold;
+  text-transform: uppercase;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: 0.2s ease-in-out;
+}
+button:hover:not(:disabled) { background: #e6e6e6; border-color: #00ff99; box-shadow: 0 0 10px rgba(0, 255, 150, 0.6); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.danger { border-color: var(--error); }
+
+/* Messaggi */
+.message { padding: 10px 14px; border-radius: 6px; border: 1px solid; }
+.message.ok { border-color: var(--accent); color: var(--accent); }
+.message.info { border-color: var(--warn); color: var(--warn); }
+.message.error { border-color: var(--error); color: var(--error); font-size: 1rem; }
+
+/* Tabelle */
+table { border-collapse: collapse; }
+.list { width: 100%; margin: 12px 0; }
+.list th, .list td { text-align: left; padding: 8px; border-bottom: 1px solid rgba(0, 255, 200, 0.25); }
+.list ul { margin: 0; padding-left: 16px; }
+.grid-table td, .grid-table th { padding: 2px 6px; vertical-align: top; }
+.grid-table td:first-child { text-align: right; opacity: 0.7; }
+
+/* Layout */
+.toolbar { display: flex; gap: 12px; align-items: center; }
+.toolbar input { max-width: 320px; }
+.split { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(300px, 1.3fr); gap: 24px; }
+.vector { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.actions { display: flex; align-items: center; gap: 16px; margin-top: 20px; }
+
+@media (max-width: 800px) {
+  .split { grid-template-columns: 1fr; }
+  .vector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Indicatore stato (da stile_1.css) */
+.indicator {
+  display: inline-block; width: 14px; height: 14px; margin-right: 8px;
+  border-radius: 50%; border: 2px solid var(--accent-strong);
+  background: var(--accent-strong); box-shadow: 0 0 10px var(--accent-strong);
+}
+.indicator.alert { border-color: var(--error); background: var(--error); box-shadow: 0 0 12px var(--error); }

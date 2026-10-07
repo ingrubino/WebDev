@@ -1,0 +1,88 @@
+# Stack completo: interfaccia Vue (nginx) + API PHP + MariaDB.
+# Gira identico su Mac M3 (arm64), Raspberry Pi 64 bit (arm64) e PC (amd64).
+#
+#   cd docker && cp .env.example .env            # poi cambia le password
+#   docker compose up -d --build                 # avvio
+#   docker compose --profile tools up -d         # + phpMyAdmin
+#   docker compose --profile legacy up -d        # + vecchia app PHP (cartella src) su :8082
+
+name: webdev
+
+services:
+  web:
+    image: ${IMAGE_PREFIX:-webdev}/web:${TAG:-latest}
+    build:
+      context: ..                          # WebDev
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    image: ${IMAGE_PREFIX:-webdev}/api:${TAG:-latest}
+    build:
+      context: ../vue                      # Dockerfile mantenuto insieme al codice API
+      dockerfile: api/Dockerfile
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-testdb}
+      DB_USER: ${DB_USER:-app}
+      DB_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD nel file .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11.4                    # LTS, immagini ufficiali amd64 + arm64
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-testdb}
+      MARIADB_USER: ${DB_USER:-app}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD nel file .env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?imposta DB_ROOT_PASSWORD nel file .env}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ../vue/db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:3306:3306"              # raggiungibile solo dalla macchina stessa
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    profiles: ["tools"]
+    environment:
+      PMA_HOST: db
+    ports:
+      - "${PMA_PORT:-8081}:80"
+    depends_on:
+      - db
+
+  # Vecchia interfaccia PHP (cartella src), per confronto durante la migrazione.
+  # Il codice usa root/root scritti a mano: funziona solo con DB_ROOT_PASSWORD=root.
+  legacy:
+    image: ${IMAGE_PREFIX:-webdev}/api:${TAG:-latest}
+    profiles: ["legacy"]
+    volumes:
+      - ../src:/var/www/html/public
+    ports:
+      - "8082:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:

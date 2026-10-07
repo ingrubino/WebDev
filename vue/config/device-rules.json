@@ -1,0 +1,14 @@
+{
+  "_comment": "Regole di validazione condivise tra frontend (Vue) e API (PHP). Modificare qui e ricostruire i container.",
+  "rows": 10,
+  "minPoints": 2,
+  "vectorLength": 10,
+  "identifier": {
+    "maxLength": 100,
+    "pattern": "^[A-Za-z0-9 _.\\-]+$",
+    "patternHint": "letters, digits, space, _ . -"
+  },
+  "time": { "label": "time (ms)", "min": 0, "max": 1000000, "strictlyIncreasing": true },
+  "current": { "label": "current (A)", "min": 0, "max": 100000 },
+  "vector": { "label": "value", "required": false, "min": null, "max": null }
+}

@@ -1,0 +1,30 @@
+# Override per sviluppo sul Mac: hot reload di Vue e del PHP senza ricostruire.
+#
+#   docker compose -f compose.yml -f compose.dev.yml up
+#
+# Apri http://localhost:8080 : le modifiche in ../vue/frontend e ../vue/api sono visibili subito.
+
+services:
+  web:
+    image: nginx:1.28-alpine
+    build: !reset null
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - vite
+
+  vite:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    volumes:
+      - ../vue/frontend:/app
+      - ../vue/config:/config:ro
+      - /app/node_modules   # node_modules Linux separati da quelli del Mac
+
+  api:
+    volumes:
+      - ../vue/api/public:/var/www/html/public
+      - ../vue/api/src:/var/www/html/src
+      - ../vue/config:/var/www/html/config

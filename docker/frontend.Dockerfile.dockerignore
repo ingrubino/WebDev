@@ -1,0 +1,11 @@
+# Usato automaticamente da BuildKit per frontend.Dockerfile (contesto = WebDev)
+**/node_modules
+**/dist
+**/.git
+**/.env
+**/.DS_Store
+src
+initdb
+vue/api
+vue/db
+docs
