@@ -170,13 +170,14 @@ Non lasciare phpMyAdmin attivo sul Raspberry se non serve.
 | Nuovo dispositivo | `/devices/new` | inserimento manuale o da file XML, con controllo dei valori e grafico |
 | Dettaglio | `/devices/<nome>` | modifica, rinomina, grafico della curva, eliminazione con conferma |
 | Import CSV | `/import` | importazione di più dispositivi con anteprima; vengono salvati solo quelli validi |
+| Configurazione canali | `/channels` | 12 canali: per ognuno un dispositivo dell'elenco e la modalità AC/DC; salvati nella tabella `channel_config` per il programma di backend |
 
 La spia in alto a destra indica se API e database rispondono (verde "online").
 
 ### Regole sui dati
 
 - **Nome**: obbligatorio, max 100 caratteri, lettere, numeri, spazio, `_`, `.`, `-`.
-- **Curva tempo/corrente**: da 2 a 10 punti; tempo (ms) ≥ 0 e crescente; corrente (A) ≥ 0.
+- **Curva tempo/corrente**: da 2 a 10 punti; tempo (ms) ≥ 0 e strettamente crescente; corrente (A) tra 0 e 8000 e uguale o minore della riga precedente.
 - **Vettore**: fino a 10 valori numerici (opzionali). La virgola decimale (`1,5`) è accettata.
 
 I limiti si cambiano in un solo file, `vue/config/device-rules.json`, valido sia per l'interfaccia sia per l'API; dopo la modifica serve `docker compose up -d --build`.
@@ -302,6 +303,7 @@ docker compose exec -T db sh -c 'mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MA
 | "Errore database" nell'interfaccia | Il database sta ancora partendo (attendi lo stato `healthy`) oppure le password in `.env` non corrispondono a quelle con cui è stato creato |
 | Ho cambiato le password in `.env` ma non funzionano | Il database conserva quelle della prima creazione. Cambiale dentro MariaDB, oppure, **cancellando tutti i dati**, `docker compose down -v` e `docker compose up -d` |
 | `no matching manifest for linux/arm/v7` sul Raspberry | Il sistema è a 32 bit e MariaDB non esiste per armv7: installa Raspberry Pi OS **64 bit** |
+| `failed to copy: httpReadSeeker ... EOF` durante `docker compose up` | Download da Docker Hub interrotto. Scarica l'immagine da sola (`docker pull mariadb:11.4`) e rilancia. Se si ripete, chiudi VPN/proxy e riavvia Docker Desktop; se resta, in Docker Desktop → Settings → General disattiva "Use containerd for pulling and storing images" |
 | `port is already allocated` | La porta è occupata: cambia `WEB_PORT` in `.env` |
 | `permission denied ... docker.sock` | Manca il gruppo docker: `sudo usermod -aG docker $USER`, poi esci e rientra |
 

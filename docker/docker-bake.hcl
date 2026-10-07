@@ -10,7 +10,7 @@ variable "TAG"          { default = "latest" }
 variable "PLATFORMS"    { default = "linux/amd64,linux/arm64,linux/arm/v7" }
 
 group "default" {
-  targets = ["web", "api"]
+  targets = ["web", "api", "canbus"]
 }
 
 target "web" {
@@ -25,4 +25,10 @@ target "api" {
   dockerfile = "api/Dockerfile"
   platforms  = split(",", PLATFORMS)
   tags       = ["${IMAGE_PREFIX}/api:${TAG}"]
+}
+
+target "canbus" {
+  context    = "../vue/canbus"
+  platforms  = split(",", PLATFORMS)
+  tags       = ["${IMAGE_PREFIX}/canbus:${TAG}"]
 }

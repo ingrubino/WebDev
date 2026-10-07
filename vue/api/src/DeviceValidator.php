@@ -40,6 +40,7 @@ final class DeviceValidator
         }
         $matrix = [];
         $prevTime = null;
+        $prevCurrent = null;
         foreach (array_slice($matrixIn, 0, $r['rows']) as $i => $row) {
             $t = self::blankToNull($row[0] ?? null);
             $c = self::blankToNull($row[1] ?? null);
@@ -51,10 +52,12 @@ final class DeviceValidator
             if ($e = self::numberError($t, $r['time'])) { $errors["matrix.$i.0"] = $e; }
             if ($e = self::numberError($c, $r['current'])) { $errors["matrix.$i.1"] = $e; }
             if (!isset($errors["matrix.$i.0"])) {
-                if ($r['time']['strictlyIncreasing'] && $prevTime !== null && (float)$t <= $prevTime) {
-                    $errors["matrix.$i.0"] = 'Must be greater than previous time';
-                }
+                if ($e = self::orderError((float)$t, $prevTime, $r['time'])) { $errors["matrix.$i.0"] = $e; }
                 $prevTime = (float)$t;
+            }
+            if (!isset($errors["matrix.$i.1"])) {
+                if ($e = self::orderError((float)$c, $prevCurrent, $r['current'])) { $errors["matrix.$i.1"] = $e; }
+                $prevCurrent = (float)$c;
             }
             $matrix[] = [(float)$t, (float)$c];
         }
@@ -87,6 +90,16 @@ final class DeviceValidator
         // Virgola decimale accettata come nel frontend: "1,5" -> "1.5"
         $s = str_replace(',', '.', trim((string)$v));
         return $s === '' ? null : $s;
+    }
+
+    // Confronto con la riga precedente secondo $rule['order'] (vedi config/device-rules.json)
+    private static function orderError(float $value, ?float $prev, array $rule): ?string
+    {
+        $order = $rule['order'] ?? null;
+        if ($prev === null || !$order) return null;
+        if ($order === 'increasing' && $value <= $prev) return 'Must be greater than previous row';
+        if ($order === 'nonIncreasing' && $value > $prev) return 'Must not exceed previous row';
+        return null;
     }
 
     private static function numberError(string $v, array $rule): ?string

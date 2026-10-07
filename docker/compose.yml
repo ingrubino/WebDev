@@ -6,7 +6,7 @@
 #   docker compose --profile tools up -d         # + phpMyAdmin
 #   docker compose --profile legacy up -d        # + vecchia app PHP (cartella src) su :8082
 
-name: webdev
+name: webdev-vue   # diverso dal vecchio stack nella radice (progetto "webdev"), per non condividere container e volumi
 
 services:
   web:
@@ -30,6 +30,7 @@ services:
       DB_NAME: ${DB_NAME:-testdb}
       DB_USER: ${DB_USER:-app}
       DB_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD nel file .env}
+      CANBUS_URL: http://canbus:8000         # servizio "Set devices"
     depends_on:
       db:
         condition: service_healthy
@@ -39,6 +40,24 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+
+  # Programma Python "Set devices": legge channel_config e invia i parametri ai dispositivi.
+  # Per ora stampa a video: docker compose logs -f canbus
+  # Lancio a mano: docker compose exec canbus python set_devices.py
+  canbus:
+    image: ${IMAGE_PREFIX:-webdev}/canbus:${TAG:-latest}
+    build:
+      context: ../vue/canbus
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-testdb}
+      DB_USER: ${DB_USER:-app}
+      DB_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD nel file .env}
+      CAN_SENDER: ${CAN_SENDER:-console}
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   db:

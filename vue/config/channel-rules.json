@@ -1,0 +1,6 @@
+{
+  "_comment": "Configurazione canali (pagina Configure channels). Letto da frontend (alla build) e API. Modificare qui e ricostruire i container.",
+  "channels": 12,
+  "modes": ["AC", "DC"],
+  "defaultMode": "AC"
+}

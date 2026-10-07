@@ -28,4 +28,7 @@ export const api = {
   createDevice: (device) => request('POST', '/devices', device),
   updateDevice: (id, device) => request('PUT', `/devices/${enc(id)}`, device),
   deleteDevice: (id) => request('DELETE', `/devices/${enc(id)}`),
+  getChannels: () => request('GET', '/channels'),
+  saveChannels: (channels) => request('PUT', '/channels', { channels }),
+  setDevices: () => request('POST', '/channels/apply'),
 }

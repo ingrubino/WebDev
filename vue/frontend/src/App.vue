@@ -20,6 +20,7 @@ onUnmounted(() => clearInterval(timer))
       <RouterLink to="/">Devices</RouterLink>
       <RouterLink to="/devices/new">New device</RouterLink>
       <RouterLink to="/import">Import CSV</RouterLink>
+      <RouterLink to="/channels">Channels</RouterLink>
     </nav>
     <span class="status" :title="online ? 'API and database online' : 'API or database unreachable'">
       <span class="indicator" :class="{ alert: online === false }"></span>

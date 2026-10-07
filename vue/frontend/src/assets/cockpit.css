@@ -115,6 +115,25 @@ table { border-collapse: collapse; }
   .vector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* Configurazione canali: selettore AC/DC */
+.channels select { max-width: 360px; }
+.channels td:first-child { width: 80px; }
+.segmented { display: inline-flex; border: 1px solid var(--accent-strong); border-radius: 6px; overflow: hidden; }
+.segmented label { padding: 6px 16px; cursor: pointer; user-select: none; }
+.segmented label + label { border-left: 1px solid var(--accent-strong); }
+.segmented label.active { background: var(--accent-strong); color: #000; font-weight: 700; }
+.segmented label:focus-within { box-shadow: inset 0 0 0 2px var(--warn); }
+.segmented input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.log { margin: 0; white-space: pre-wrap; font-size: 0.85rem; color: var(--accent); max-height: 400px; overflow: auto; }
+@media (max-width: 600px) {
+  .panel { padding: 12px; }
+  .channels th, .channels td { padding: 6px 4px; }
+  .channels td:first-child { width: 28px; }
+  .channels select { min-width: 150px; }
+  .segmented label { padding: 6px 10px; }
+  .actions { flex-wrap: wrap; }
+}
+
 /* Indicatore stato (da stile_1.css) */
 .indicator {
   display: inline-block; width: 14px; height: 14px; margin-right: 8px;

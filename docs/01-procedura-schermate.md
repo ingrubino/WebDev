@@ -19,6 +19,7 @@ La versione PHP originale (`src/`) è già stata migrata così:
 | `save_xml.php`, `upload_xml.php`, `process_xml.php` | pulsante "Load data from XML file" in `DeviceEdit.vue` | il file riempie il form; si controlla e poi si salva |
 | `delete.php` | pulsante "Remove" + `DELETE /api/devices/<nome>` | con richiesta di conferma |
 | `import.php` (non aveva una pagina) | `views/ImportCsv.vue` (`/import`) | anteprima, controlli, importazione dei soli dispositivi validi |
+| (nuova) | `views/ChannelConfig.vue` (`/channels`) | configurazione dei 12 canali: dispositivo e modalità AC/DC, salvata nella tabella `channel_config` per il programma di backend |
 | `header.php`, `footer.php`, `stile.css` | `App.vue`, `assets/cockpit.css` | stesso tema "cockpit", più una spia di stato API/database |
 | `index.php` (phpinfo), `index2.php`, `script.js`, `test_class_genGraph.php` | non migrati | erano pagine di prova |
 
@@ -42,6 +43,7 @@ Elencare tutte le schermate che il sistema finale deve avere, anche quelle non a
 | 1 | Elenco dispositivi | fatta | |
 | 2 | Nuovo / dettaglio / modifica dispositivo (con import XML) | fatta | |
 | 3 | Import CSV | fatta | |
+| 3b | Configurazione canali (Configure channels) | fatta | |
 | 4 | Dashboard di monitoraggio (stato di tutti i dispositivi, allarmi attivi) | da definire | alta |
 | 5 | Stato del singolo dispositivo (misure in tempo reale, storico) | da definire | alta |
 | 6 | Configurazione parametri del dispositivo (soglie, comandi) | da definire | media |
@@ -86,14 +88,29 @@ La tabella "dati inseriti" diventa direttamente le regole di validazione del Pas
   | campo | tipo | obbligatorio | regole | messaggio |
   |---|---|---|---|---|
   | nome | testo | sì | max 100 caratteri; lettere, cifre, spazio, `_ . -` | `Required`, `Max 100 characters`, `Allowed: ...` |
-  | tempo (ms) | numero | se c'è la corrente | 0 – 1.000.000; strettamente crescente | `Must be greater than previous time` |
-  | corrente (A) | numero | se c'è il tempo | 0 – 100.000 | `Required when time is set` |
+  | tempo (ms) | numero | se c'è la corrente | 0 – 1.000.000; strettamente crescente | `Must be greater than previous row` |
+  | corrente (A) | numero | se c'è il tempo | 0 – 8.000; uguale o minore della riga precedente | `Max 8000`, `Must not exceed previous row`, `Required when time is set` |
   | righe complete | | | da 2 a 10 | `At least 2 complete rows` |
   | vettore | numeri | no | fino a 10 valori; virgola decimale accettata | `Must be a number` |
 
 - **Azioni:** Save (con conferma di sovrascrittura se il nome esiste già), Remove (con conferma), Load data from XML file.
 - **Stati:** caricamento, dispositivo inesistente, API non raggiungibile, modifiche non salvate.
-- **Collaudo:** `src/data.xml` si carica e si salva; tempi non crescenti o correnti negative bloccano il salvataggio con il messaggio sulla riga giusta; salvare due volte non crea righe duplicate nel database.
+- **Collaudo:** `src/data.xml` si carica e si salva; tempi non crescenti, correnti che risalgono o valori negativi bloccano il salvataggio con il messaggio sulla riga giusta; salvare due volte non crea righe duplicate nel database.
+
+### Esempio: la scheda della schermata "Configurazione canali"
+
+- **Scopo:** associare a ciascuno dei 12 canali un dispositivo e la modalità AC/DC; la configurazione salvata viene letta da un programma di backend.
+- **URL:** `/channels` (link "Configure channels" nell'elenco dispositivi, voce "Channels" nel menu) · **API:** `GET`, `PUT /api/channels`
+- **Dati inseriti:**
+
+  | campo | tipo | obbligatorio | regole | messaggio |
+  |---|---|---|---|---|
+  | dispositivo | menu a discesa | no ("— not used —") | deve essere un dispositivo esistente; lo stesso dispositivo può stare su più canali | `Unknown device` |
+  | modalità | AC / DC | sì | uno dei valori di `modes`; predefinito `AC` | `Choose AC or DC` |
+
+- **Azioni:** Save configuration, Discard changes.
+- **Dati salvati:** tabella `channel_config` (`channel` 1–12, `device` o `NULL`, `mode` `AC`/`DC`, `updated_at`). Rinominare un dispositivo aggiorna i canali; eliminarlo li lascia liberi (`NULL`).
+- **Regole configurabili:** `vue/config/channel-rules.json` (`channels`: numero di righe, `modes`, `defaultMode`); dopo una modifica serve `docker compose up -d --build`.
 
 ---
 
@@ -121,8 +138,10 @@ API attuale, per riferimento:
 | `POST` | `/api/devices` | crea; `201`, `409` se il nome esiste, `422` se non valido |
 | `PUT` | `/api/devices/<nome>` | aggiorna o rinomina; `200`, `404`, `409`, `422` |
 | `DELETE` | `/api/devices/<nome>` | `204` oppure `404` |
+| `GET` | `/api/channels` | `{ channels: [{ channel, device, mode }, ...] }`, sempre 12 righe |
+| `PUT` | `/api/channels` | sostituisce tutta la configurazione `{ channels: [{ device, mode }, ...] }`; `200`, `422` |
 
-Le chiavi degli errori sono le stesse del form (`identifier`, `matrix`, `matrix.3.0`, `vector.2`): così l'errore restituito dal server compare accanto al campo giusto.
+Le chiavi degli errori sono le stesse del form (`identifier`, `matrix`, `matrix.3.0`, `vector.2`, `channels.4.device`, `channels.4.mode`): così l'errore restituito dal server compare accanto al campo giusto.
 
 ---
 

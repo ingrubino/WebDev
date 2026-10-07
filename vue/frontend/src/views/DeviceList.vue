@@ -26,6 +26,7 @@ onMounted(async () => {
     <div class="toolbar">
       <input v-model="filter" type="search" placeholder="Filter by name…" aria-label="Filter devices" />
       <RouterLink to="/devices/new"><button>Add a new device</button></RouterLink>
+      <RouterLink to="/channels"><button>Configure channels</button></RouterLink>
     </div>
 
     <p v-if="loading">Loading…</p>

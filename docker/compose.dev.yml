@@ -28,3 +28,7 @@ services:
       - ../vue/api/public:/var/www/html/public
       - ../vue/api/src:/var/www/html/src
       - ../vue/config:/var/www/html/config
+
+  canbus:
+    volumes:
+      - ../vue/canbus:/app   # dopo una modifica: docker compose restart canbus

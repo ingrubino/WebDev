@@ -14,6 +14,14 @@ export function normalizeNumber(value) {
   return s === '' ? null : s
 }
 
+// Confronto con la riga precedente secondo rule.order (vedi config/device-rules.json)
+function orderError(value, prev, rule) {
+  if (prev === null || !rule.order) return null
+  if (rule.order === 'increasing' && value <= prev) return 'Must be greater than previous row'
+  if (rule.order === 'nonIncreasing' && value > prev) return 'Must not exceed previous row'
+  return null
+}
+
 function numberError(s, rule) {
   if (!NUMBER_RE.test(s)) return 'Must be a number'
   const n = Number(s)
@@ -60,6 +68,7 @@ export function validateDevice(form, r = defaultRules) {
 
   const matrix = []
   let prevTime = null
+  let prevCurrent = null
   ;(form.matrix || []).slice(0, r.rows).forEach((row, i) => {
     const t = normalizeNumber(row?.[0])
     const c = normalizeNumber(row?.[1])
@@ -71,10 +80,14 @@ export function validateDevice(form, r = defaultRules) {
     if (te) errors[`matrix.${i}.0`] = te
     if (ce) errors[`matrix.${i}.1`] = ce
     if (!te) {
-      if (r.time.strictlyIncreasing && prevTime !== null && Number(t) <= prevTime) {
-        errors[`matrix.${i}.0`] = 'Must be greater than previous time'
-      }
+      const oe = orderError(Number(t), prevTime, r.time)
+      if (oe) errors[`matrix.${i}.0`] = oe
       prevTime = Number(t)
+    }
+    if (!ce) {
+      const oe = orderError(Number(c), prevCurrent, r.current)
+      if (oe) errors[`matrix.${i}.1`] = oe
+      prevCurrent = Number(c)
     }
     matrix.push([Number(t), Number(c)])
   })

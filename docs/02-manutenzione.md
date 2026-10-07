@@ -32,7 +32,10 @@ Come far evolvere l'interfaccia senza rompere quello che funziona: dove sta cosa
 | gli endpoint | `vue/api/public/index.php` |
 | le query SQL | `vue/api/src/DeviceRepository.php` |
 | le tabelle | `vue/db/init/` (nuove installazioni) + `vue/db/migrations/` (installazioni esistenti) |
-| i test delle regole | `vue/frontend/tests/device.test.js` |
+| i test delle regole | `vue/frontend/tests/device.test.js`, `vue/frontend/tests/channels.test.js` |
+| numero di canali, modalità ammesse (AC/DC), modalità predefinita | `vue/config/channel-rules.json` |
+| come viene controllata la configurazione dei canali | `vue/frontend/src/validation/channels.js` **e** `vue/api/src/ChannelValidator.php` |
+| la schermata dei canali e la sua tabella | `vue/frontend/src/views/ChannelConfig.vue`, `vue/api/src/ChannelRepository.php`, tabella `channel_config` (`vue/db/init/02_channel_config.sql`) |
 | container, porte, versioni delle immagini | `docker/compose.yml`, `docker/frontend.Dockerfile`, `vue/api/Dockerfile`, `docker/.env` |
 
 ---
@@ -82,7 +85,7 @@ git push -u origin feature/nome-funzione     # pull request su GitHub, oppure me
 ### Aggiunto
 - Registro eventi (/events).
 ### Database
-- Applicare vue/db/migrations/002_event_table.sql
+- Applicare vue/db/migrations/003_event_table.sql
 ```
 
 ---
@@ -91,38 +94,42 @@ git push -u origin feature/nome-funzione     # pull request su GitHub, oppure me
 
 ### Cambiare una soglia
 
-Esempio: corrente massima 5000 A e nome lungo al massimo 40 caratteri. In `vue/config/device-rules.json`:
+Esempio: portare la corrente massima da 8000 A (valore attuale) a 10000 A e il nome al massimo a 40 caratteri. In `vue/config/device-rules.json`:
 
 ```json
 "identifier": { "maxLength": 40, ... },
-"current": { "label": "current (A)", "min": 0, "max": 5000 }
+"current": { "label": "current (A)", "min": 0, "max": 10000, "order": "nonIncreasing" }
 ```
 
 Poi `docker compose up -d --build`: il frontend legge il file **al momento della build**, quindi vanno ricostruite entrambe le immagini. In modalità sviluppo basta salvare il file.
 
 Anche `rows` e `vectorLength` stanno lì: portare `rows` a 20 dà una tabella di 20 righe senza altre modifiche.
 
+L'ordine dei valori tra una riga e la successiva si sceglie con la chiave `order` di `time` e `current`: `"increasing"` (strettamente crescente), `"nonIncreasing"` (uguale o minore della riga precedente) oppure `null` (nessun vincolo). Oggi il tempo è `increasing` e la corrente `nonIncreasing`, con un massimo di 8000 A.
+
 ### Aggiungere una regola nuova
 
-Esempio: la corrente deve essere **non crescente** nel tempo.
+Esempio: la curva deve **partire dal tempo 0**.
 
-1. `vue/config/device-rules.json`: `"current": { ..., "nonIncreasing": true }`
-2. `vue/frontend/src/validation/device.js`, in `validateDevice()`: dichiarare `let prevCurrent = null` accanto a `prevTime` e, nel ciclo sulle righe, dopo il calcolo di `ce`:
+1. `vue/config/device-rules.json`: `"time": { ..., "startsAtZero": true }`
+2. `vue/frontend/src/validation/device.js`, in `validateDevice()`, dopo il ciclo sulle righe:
    ```js
-   if (!ce && r.current.nonIncreasing && prevCurrent !== null && Number(c) > prevCurrent) {
-     errors[`matrix.${i}.1`] = 'Must not exceed previous current'
+   if (r.time.startsAtZero && matrix.length && matrix[0][0] !== 0 && !errors['matrix.0.0']) {
+     errors['matrix.0.0'] = 'First time must be 0'
    }
-   if (!ce) prevCurrent = Number(c)
    ```
-3. `vue/api/src/DeviceValidator.php`: stessa logica, stessa chiave `"matrix.$i.1"`, stesso messaggio.
+   (la chiave d'errore indica la prima riga della tabella; se la prima riga può essere vuota, usare l'indice della prima riga compilata).
+3. `vue/api/src/DeviceValidator.php`: stessa logica, stessa chiave `"matrix.0.0"`, stesso messaggio.
 4. `vue/frontend/tests/device.test.js`: un caso che passa e uno che fallisce, poi `npm test`.
 5. Aggiornare la scheda della schermata ([01-procedura-schermate.md](01-procedura-schermate.md#passo-2-compilare-una-scheda-per-ogni-schermata)).
+
+Per regole sull'ordine tra righe non serve codice nuovo: basta la chiave `order` (vedi "Cambiare una soglia").
 
 ### Aggiungere un campo al dispositivo
 
 Esempio: corrente nominale ("rated current").
 
-1. **Database**: creare `vue/db/migrations/002_device_table.sql`
+1. **Database**: creare `vue/db/migrations/003_device_table.sql`
    ```sql
    CREATE TABLE IF NOT EXISTS device (
      identifier VARCHAR(100) PRIMARY KEY,
@@ -216,7 +223,7 @@ curl -s http://localhost:8080/api/health
 curl -s http://localhost:8080/api/devices
 curl -s -X POST http://localhost:8080/api/devices -H 'Content-Type: application/json' \
      -d '{"identifier":"Prova1","matrix":[[0,100],[0,90]],"vector":[]}'
-# atteso: 422 con "matrix.1.0": "Must be greater than previous time"
+# atteso: 422 con "matrix.1.0": "Must be greater than previous row"
 ```
 
 ---

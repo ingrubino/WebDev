@@ -8,11 +8,16 @@
 //   POST   /api/devices             crea dispositivo          (409 se esiste già)
 //   PUT    /api/devices/{id}        aggiorna / rinomina       (404 se non esiste)
 //   DELETE /api/devices/{id}        elimina dispositivo
+//   GET    /api/channels            configurazione dei canali (sempre N righe, vedi config/channel-rules.json)
+//   PUT    /api/channels            sostituisce l'intera configurazione {channels:[{device, mode}, ...]}
+//   POST   /api/channels/apply      "Set devices": avvia il servizio Python canbus (vedi vue/canbus)
 declare(strict_types=1);
 
 require __DIR__ . '/../src/Db.php';
 require __DIR__ . '/../src/DeviceValidator.php';
 require __DIR__ . '/../src/DeviceRepository.php';
+require __DIR__ . '/../src/ChannelValidator.php';
+require __DIR__ . '/../src/ChannelRepository.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -39,6 +44,7 @@ $segments = array_map('rawurldecode', array_values(array_filter(explode('/', $pa
 
 $rulesFile = getenv('RULES_FILE') ?: __DIR__ . '/../config/device-rules.json';
 $validator = new DeviceValidator($rulesFile);
+$channelRulesFile = getenv('CHANNEL_RULES_FILE') ?: __DIR__ . '/../config/channel-rules.json';
 
 try {
     if ($segments === ['health'] && $method === 'GET') {
@@ -48,6 +54,33 @@ try {
 
     if ($segments === ['rules'] && $method === 'GET') {
         respond(200, $validator->rules());
+    }
+
+    if ($segments === ['channels', 'apply'] && $method === 'POST') {
+        // Il servizio canbus legge da solo la configurazione salvata e invia i parametri ai dispositivi
+        $url = rtrim(getenv('CANBUS_URL') ?: 'http://canbus:8000', '/') . '/apply';
+        $ctx = stream_context_create(['http' => [
+            'method' => 'POST', 'header' => "Content-Type: application/json\r\n", 'content' => '{}',
+            'timeout' => 60, 'ignore_errors' => true,
+        ]]);
+        $body = @file_get_contents($url, false, $ctx);
+        if ($body === false) respond(502, ['error' => 'Set devices service (canbus) unreachable']);
+        preg_match('#^HTTP/\S+ (\d{3})#', $http_response_header[0] ?? '', $m);
+        respond((int)($m[1] ?? 502), json_decode($body, true) ?? ['error' => 'Invalid response from canbus service']);
+    }
+
+    if ($segments === ['channels'] && in_array($method, ['GET', 'PUT'], true)) {
+        $channelValidator = new ChannelValidator($channelRulesFile);
+        $cr = $channelValidator->rules();
+        $pdo = Db::pdo();
+        ChannelRepository::ensureSchema($pdo);
+        $channels = new ChannelRepository($pdo);
+        if ($method === 'PUT') {
+            [$rows, $errors] = $channelValidator->validate(jsonBody(), (new DeviceRepository($pdo))->identifiers());
+            if ($errors) respond(422, ['error' => 'Validation failed', 'fields' => $errors]);
+            $channels->replaceAll($rows);
+        }
+        respond(200, ['channels' => $channels->all($cr['channels'], $cr['defaultMode'])]);
     }
 
     if (($segments[0] ?? null) === 'devices') {

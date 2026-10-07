@@ -49,12 +49,17 @@ final class DeviceRepository
      */
     public function save(array $device, ?string $previousIdentifier = null): void
     {
+        $renamed = $previousIdentifier !== null && $previousIdentifier !== $device['identifier'];
+        if ($renamed) ChannelRepository::ensureSchema($this->pdo);
         $this->pdo->beginTransaction();
         try {
             $del = $this->pdo->prepare("DELETE FROM dataset WHERE identifier = ?");
             $del->execute([$device['identifier']]);
-            if ($previousIdentifier !== null && $previousIdentifier !== $device['identifier']) {
+            if ($renamed) {
                 $del->execute([$previousIdentifier]);
+                // i canali che usavano il vecchio nome seguono il dispositivo
+                $this->pdo->prepare("UPDATE channel_config SET device = ? WHERE device = ?")
+                    ->execute([$device['identifier'], $previousIdentifier]);
             }
             $ins = $this->pdo->prepare(
                 "INSERT INTO dataset (identifier, row_index, col1, col2, vector_values) VALUES (?, ?, ?, ?, ?)"
@@ -72,9 +77,25 @@ final class DeviceRepository
 
     public function delete(string $identifier): int
     {
-        $st = $this->pdo->prepare("DELETE FROM dataset WHERE identifier = ?");
-        $st->execute([$identifier]);
+        ChannelRepository::ensureSchema($this->pdo);
+        $this->pdo->beginTransaction();
+        try {
+            $st = $this->pdo->prepare("DELETE FROM dataset WHERE identifier = ?");
+            $st->execute([$identifier]);
+            // i canali che usavano il dispositivo restano senza dispositivo
+            $this->pdo->prepare("UPDATE channel_config SET device = NULL WHERE device = ?")->execute([$identifier]);
+            $this->pdo->commit();
+        } catch (Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
         return $st->rowCount();
+    }
+
+    /** @return string[] tutti gli identifier esistenti */
+    public function identifiers(): array
+    {
+        return $this->pdo->query("SELECT DISTINCT identifier FROM dataset")->fetchAll(PDO::FETCH_COLUMN);
     }
 
     private static function num($v)

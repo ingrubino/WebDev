@@ -1,14 +1,14 @@
 // Test delle regole di validazione: eseguire con `npm test`.
 // Aggiungere un caso qui ogni volta che si introduce o modifica una regola.
 import { describe, expect, it } from 'vitest'
-import { emptyDevice, validateDevice } from '../src/validation/device'
+import { emptyDevice, rules, validateDevice } from '../src/validation/device'
 import { parseDevicesCsv } from '../src/validation/parsers'
 
 function device(overrides = {}) {
   const d = emptyDevice()
   d.identifier = 'InterruttoreXX2'
   d.matrix[0] = ['0', '100']
-  d.matrix[1] = ['1', '90']
+  d.matrix[1] = ['5', '90']
   return Object.assign(d, overrides)
 }
 
@@ -16,7 +16,7 @@ describe('validateDevice', () => {
   it('accepts a minimal valid device', () => {
     const { valid, clean } = validateDevice(device())
     expect(valid).toBe(true)
-    expect(clean.matrix).toEqual([[0, 100], [1, 90]])
+    expect(clean.matrix).toEqual([[0, 100], [5, 90]])
     expect(clean.vector).toHaveLength(10)
   })
 
@@ -39,10 +39,37 @@ describe('validateDevice', () => {
     expect(errors['matrix.0.1']).toBe('Min 0')
   })
 
-  it('requires strictly increasing time', () => {
+  it('rejects a current above the configured maximum', () => {
+    const d = device()
+    d.matrix[0] = ['0', String(rules.current.max + 1)]
+    expect(validateDevice(d).errors['matrix.0.1']).toBe(`Max ${rules.current.max}`)
+    d.matrix[0] = ['0', String(rules.current.max)]
+    expect(validateDevice(d).errors['matrix.0.1']).toBeUndefined()
+  })
+
+  it('requires time strictly increasing', () => {
     const d = device()
     d.matrix[1] = ['0', '90']
-    expect(validateDevice(d).errors['matrix.1.0']).toMatch(/greater/)
+    expect(validateDevice(d).errors['matrix.1.0']).toMatch(/greater than previous row/)
+  })
+
+  it('rejects a current greater than the previous row', () => {
+    const d = device()
+    d.matrix[1] = ['5', '101']
+    expect(validateDevice(d).errors['matrix.1.1']).toMatch(/exceed previous row/)
+  })
+
+  it('accepts a current equal to the previous row', () => {
+    const d = device()
+    d.matrix[1] = ['5', '100']
+    expect(validateDevice(d).valid).toBe(true)
+  })
+
+  it('lets the rules disable the order check', () => {
+    const r = { ...rules, current: { ...rules.current, order: null } }
+    const d = device()
+    d.matrix[1] = ['5', '101']
+    expect(validateDevice(d, r).valid).toBe(true)
   })
 
   it('needs at least two points', () => {
