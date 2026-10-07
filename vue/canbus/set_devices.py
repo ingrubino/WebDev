@@ -1,25 +1,23 @@
 """Set devices: legge la configurazione dei canali (tabella channel_config) e, per
 ogni canale usato, carica i parametri del dispositivo (curva tempo/corrente e
-vettore dalla tabella dataset) e li invia con il sender scelto (oggi: a video).
+vettore dalla tabella dataset) e li invia al bus (oggi l'emulatore, che li stampa).
 
-Uso:
-  python set_devices.py            esegue una volta e stampa a terminale
-  python set_devices.py --serve    servizio HTTP per il pulsante "Set devices"
-                                   (POST /apply, GET /health), porta $PORT (8000)
+La funzione apply() è usata dal gateway quando arriva il comando MQTT
+system/set_devices/start (pulsante "Set devices" nella pagina Configure channels).
+
+Lancio a mano, dal terminale (stesso percorso del pulsante, via MQTT):
+  docker compose exec canbus python set_devices.py
 
 Connessione al database da variabili d'ambiente: DB_HOST, DB_PORT, DB_NAME,
-DB_USER, DB_PASSWORD (come l'API). CAN_SENDER sceglie il sender (default console).
+DB_USER, DB_PASSWORD (come l'API).
 """
 import json
 import os
 import sys
-import threading
+import uuid
 from datetime import datetime
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pymysql
-
-from can_sender import SENDERS
 
 
 def connect():
@@ -59,18 +57,17 @@ def load_device(cur, identifier):
     return curve, vector
 
 
-def apply(log=print):
-    """Esegue Set devices. Restituisce il riepilogo per l'interfaccia."""
+def apply(bus, log=print):
+    """Esegue Set devices sul bus indicato. Restituisce il riepilogo per l'interfaccia."""
     lines = []
 
     def out(line=""):
         lines.append(line)
         log(line)
 
-    sender_name = os.environ.get("CAN_SENDER", "console")
-    sender = SENDERS[sender_name](out)
+    bus.log = out  # le righe stampate dal bus finiscono anche nel riepilogo
     summary = []
-    out(f"=== Set devices {datetime.now():%Y-%m-%d %H:%M:%S} (sender: {sender_name}) ===")
+    out(f"=== Set devices {datetime.now():%Y-%m-%d %H:%M:%S} (bus: {bus.name}) ===")
     conn = connect()
     try:
         with conn.cursor() as cur:
@@ -79,7 +76,7 @@ def apply(log=print):
             if not channels:
                 out("No channel configuration saved yet.")
             for ch in channels:
-                entry = {"channel": ch["channel"], "device": ch["device"], "mode": ch["mode"]}
+                entry = {"channel": ch["channel"], "device": ch["device"], "acdc": ch["mode"]}
                 if not ch["device"]:
                     entry["status"] = "not used"
                 else:
@@ -89,58 +86,47 @@ def apply(log=print):
                         entry["status"] = "device not found"
                     else:
                         curve, vector = params
-                        sender.send_channel(ch["channel"], ch["device"], ch["mode"], curve, vector)
+                        bus.send_parameters(ch["channel"], ch["device"], ch["mode"], curve, vector)
                         entry.update(status="sent", points=len(curve))
                 summary.append(entry)
     finally:
         conn.close()
-        sender.close()
+        bus.log = log
     sent = sum(1 for e in summary if e["status"] == "sent")
     out(f"=== {sent} channel(s) sent ===")
     return {"sent": sent, "channels": summary, "log": lines}
 
 
-class Handler(BaseHTTPRequestHandler):
-    lock = threading.Lock()  # un solo Set devices alla volta
+def trigger():
+    """Invia lo start via MQTT al gateway e stampa il risultato (come il pulsante)."""
+    import threading
+    import paho.mqtt.client as mqtt
 
-    def _json(self, status, body):
-        data = json.dumps(body).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+    request_id = uuid.uuid4().hex[:12]
+    done = threading.Event()
+    result = {}
 
-    def do_GET(self):
-        if self.path == "/health":
-            return self._json(200, {"status": "ok"})
-        self._json(404, {"error": "Not found"})
+    def on_connect(client, userdata, flags, reason_code, properties):
+        client.subscribe("system/set_devices/result", qos=1)
+        client.publish("system/set_devices/start", json.dumps({"id": request_id}), qos=1)
 
-    def do_POST(self):
-        if self.path != "/apply":
-            return self._json(404, {"error": "Not found"})
-        if not self.lock.acquire(blocking=False):
-            return self._json(409, {"error": "Set devices already running"})
-        try:
-            self._json(200, apply(lambda line: print(line, flush=True)))
-        except Exception as e:  # errore di database o di invio: lo vede anche l'interfaccia
-            print(f"ERROR: {e}", file=sys.stderr, flush=True)
-            self._json(500, {"error": f"Set devices failed: {e}"})
-        finally:
-            self.lock.release()
+    def on_message(client, userdata, msg):
+        body = json.loads(msg.payload)
+        if body.get("id") == request_id:
+            result.update(body)
+            done.set()
 
-    def log_message(self, fmt, *args):
-        pass  # niente log di accesso: nel terminale restano solo i parametri inviati
-
-
-def serve():
-    port = int(os.environ.get("PORT", "8000"))
-    print(f"Set devices service listening on port {port}", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.on_connect, client.on_message = on_connect, on_message
+    client.connect(os.environ.get("MQTT_HOST", "mqtt"), int(os.environ.get("MQTT_PORT", "1883")))
+    client.loop_start()
+    if not done.wait(60):
+        sys.exit("No answer from the gateway within 60 s")
+    client.loop_stop()
+    print("\n".join(result.get("log", [])))
+    if not result.get("ok"):
+        sys.exit(f"Set devices failed: {result.get('error')}")
 
 
 if __name__ == "__main__":
-    if "--serve" in sys.argv:
-        serve()
-    else:
-        apply()
+    trigger()

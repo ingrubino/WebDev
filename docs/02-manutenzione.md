@@ -37,9 +37,16 @@ Come far evolvere l'interfaccia senza rompere quello che funziona: dove sta cosa
 | numero di canali, modalità ammesse (AC/DC), modalità predefinita | `vue/config/channel-rules.json` |
 | come viene controllata la configurazione dei canali | `vue/frontend/src/validation/channels.js` **e** `vue/api/src/ChannelValidator.php` |
 | la schermata dei canali e la sua tabella | `vue/frontend/src/views/ChannelConfig.vue`, `vue/api/src/ChannelRepository.php`, tabella `channel_config` (`vue/db/init/02_channel_config.sql`) |
+| la pagina SCADA | `vue/frontend/src/views/Scada.vue`, `components/ScadaModule.vue`, `components/SlideSwitch.vue`, `src/scada.js` (logica, testata in `tests/scada.test.js`) |
+| colonne della griglia SCADA, secondi prima di mostrare `---`, limiti dei valori, soglia del LED rosso | `vue/config/scada.json` (`columns`, `staleAfterSeconds`, `limits`, `alarmAbove`; letto alla build) |
+| limiti dei valori lato gateway, stato del Sync all'avvio | `LIMITS` in `vue/canbus/gateway.py` (deve coincidere con `limits` di `scada.json`), variabile `SYNC_POWER` |
+| collegamento MQTT del browser | `vue/frontend/src/mqtt.js` (libreria npm `mqtt`), WebSocket `/mqtt` in `docker/nginx/default.conf` |
+| elenco dei topic e formato dei messaggi | `vue/canbus/TOPICS.md` (unico riferimento: aggiornarlo a ogni modifica) |
+| broker MQTT | container `mqtt` (eclipse-mosquitto:2), configurazione in `docker/mosquitto/mosquitto.conf` |
+| gateway CAN ↔ MQTT (stato, comandi, Set devices) | `vue/canbus/gateway.py` |
+| collegamento ai dispositivi (oggi emulatore) | `vue/canbus/bus.py` (classe `EmulatorBus`, registro `BUSES`, scelto con la variabile `DEVICE_BUS`) |
 | cosa fa "Set devices" (lettura di canali e curve dal database) | `vue/canbus/set_devices.py` |
-| come vengono inviati i parametri (oggi: stampa a video) | `vue/canbus/can_sender.py` (classe `ConsoleSender`, registro `SENDERS`, scelto con la variabile `CAN_SENDER`) |
-| le librerie Python del servizio | `vue/canbus/requirements.txt` (oggi solo PyMySQL) |
+| le librerie Python del gateway | `vue/canbus/requirements.txt` (PyMySQL, paho-mqtt) |
 | container, porte, versioni delle immagini | `docker/compose.yml`, `docker/frontend.Dockerfile`, `vue/api/Dockerfile`, `docker/.env` |
 
 ### Componenti da riutilizzare
@@ -48,6 +55,9 @@ Come far evolvere l'interfaccia senza rompere quello che funziona: dove sta cosa
 |---|---|
 | `components/FormField.vue` | qualsiasi campo di input con il suo messaggio d'errore |
 | `components/CartesianChart.vue` | qualsiasi grafico X/Y |
+| `components/SlideSwitch.vue` | interruttore a due posizioni che mostra lo stato reale del dispositivo |
+| `components/ScadaModule.vue` | modulo di un canale con display, LED e interruttori |
+| `src/mqtt.js` | connessione MQTT dal browser |
 | `components/FilePicker.vue` | scelta di un file: pulsante "Choose file" e testo "No file selected" o nome del file; proprietà `accept` e `label`, evento `select` |
 | `components/ConfirmDialog.vue` + `askConfirm()` da `src/confirm.js` | richiesta di conferma al posto di `window.confirm()`: `await askConfirm('Remove device?', { okLabel: 'Remove', danger: true })` restituisce `true` o `false`; pulsanti ad es. Leave/Cancel, Remove/Cancel, Overwrite/Cancel |
 | classi `.panel`, `.list`, `.split`, `.message`, `.indicator` in `assets/cockpit.css` | riquadri, tabelle, messaggi, spie di stato |
@@ -208,25 +218,32 @@ Prima si compila la scheda ([01-procedura-schermate.md](01-procedura-schermate.m
 
 Per una schermata di **monitoraggio** con aggiornamento periodico, copiare lo schema di `App.vue`: `setInterval` in `onMounted`, `clearInterval` in `onUnmounted`.
 
-### Usare "Set devices" e passare al bus CAN reale
+### Gateway MQTT, "Set devices" e passaggio al bus CAN reale
 
-Il servizio `canbus` (`vue/canbus/`) è un programma Python in un container a parte. L'API lo chiama quando si preme "Set devices" (`POST /api/channels/apply` → `http://canbus:8000/apply`); risponde anche su `GET /health`. Si può lanciare anche a mano:
+Architettura: il browser parla con il broker MQTT (Mosquitto, container `mqtt`) su WebSocket `/mqtt`; dall'altra parte il gateway Python (container `canbus`, `vue/canbus/gateway.py`) traduce i messaggi MQTT in messaggi per i dispositivi e viceversa. Un unico programma Python gestisce sia lo stato e i comandi della pagina SCADA sia il caricamento dei parametri ("Set devices"), così non ci sono due programmi che usano il bus nello stesso momento. Tutti i topic sono descritti in `vue/canbus/TOPICS.md`.
 
 ```bash
-docker compose logs -f canbus                         # vedere cosa viene inviato
-docker compose exec canbus python set_devices.py      # un invio da terminale, senza interfaccia
+docker compose logs -f canbus                         # cosa fa il gateway (parametri caricati, comandi ricevuti)
+docker compose exec canbus python set_devices.py      # "Set devices" da terminale (passa anch'esso da MQTT)
+docker compose exec mqtt mosquitto_sub -t '#' -v      # tutti i messaggi MQTT
 ```
 
-Per ogni canale usato legge da `channel_config` il dispositivo e la modalità AC/DC, poi da `dataset` la curva tempo/corrente e il vettore, e li passa al "sender". Oggi l'unico sender è `ConsoleSender`, che stampa a video. Per inviare davvero sul bus CAN:
+"Set devices": la pagina Configure channels pubblica `system/set_devices/start`; il gateway legge da `channel_config` dispositivo e modalità AC/DC di ogni canale usato, da `dataset` la curva tempo/corrente e il vettore, li invia al bus e risponde su `system/set_devices/result`. Un solo caricamento alla volta.
 
-1. In `vue/canbus/can_sender.py` scrivere una classe con gli stessi metodi di `ConsoleSender` (`send_channel(channel, device, mode, curve, vector)` e `close()`) che usa la libreria python-can; nel file c'è già un esempio commentato (`CanBusSender`). La codifica dei messaggi (ID, formato dei dati) dipende dal protocollo dei dispositivi e va definita.
-2. Registrarla nel dizionario `SENDERS` con un nome, es. `"socketcan"`.
+Il gateway gestisce anche la logica sync: tiene lo stato dell'interruttore unico Sync (`system/sync/cmd`, `system/sync/state` retained), ignora i comandi di accensione dei moduli in sync e riallinea quelli che divergono; scarta i valori fuori da `LIMITS` (corrente ±10000 A, temperatura 0–150 °C, codice errore 0–255) pubblicandoli come `null`. **Cambiando un limite, va cambiato sia in `LIMITS` sia in `scada.json`.**
+
+Oggi il bus è `EmulatorBus`, che simula i 12 moduli (all'avvio in sync e spenti): corrente vicina al valore nominale (prima corrente della curva caricata, altrimenti 90 + 4 × canale A), temperatura che tende a 25 + 0,4 × I °C, codice errore 5 sopra 70 °C e 20 sopra 85 °C (LED rosso, perché > 15). Per collegare i dispositivi reali:
+
+1. In `vue/canbus/bus.py` scrivere una classe con gli stessi metodi di `EmulatorBus`: `start(on_state)`, `send_command(ch, cmd)`, `send_parameters(...)`, `close()`, usando la libreria python-can; in fondo al file c'è un esempio. La codifica dei messaggi CAN (ID, formato dei dati) dipende dal protocollo dei dispositivi e va definita.
+2. Registrarla nel dizionario `BUSES` con un nome, es. `"socketcan"`.
 3. In `vue/canbus/requirements.txt` attivare la riga `python-can==4.*`.
-4. In `docker/.env` impostare `CAN_SENDER=socketcan`.
-5. Dare al container l'accesso all'interfaccia `can0` del Raspberry: nel servizio `canbus` di `docker/compose.yml` aggiungere `network_mode: host` (con la rete host il nome `canbus` non è più raggiungibile dagli altri container: nel servizio `api` di `compose.yml` cambiare `CANBUS_URL` con l'IP del Raspberry sulla rete locale, es. `http://192.168.1.50:8000`). L'interfaccia `can0` va attivata sul Raspberry (es. `sudo ip link set can0 up type can bitrate 500000`).
-6. `docker compose up -d --build` e prova con `docker compose exec canbus python set_devices.py`.
+4. In `docker/.env` impostare `DEVICE_BUS=socketcan`.
+5. Dare al container l'accesso all'interfaccia `can0` del Raspberry: nel servizio `canbus` di `docker/compose.yml` aggiungere `network_mode: host` e, poiché con la rete host i nomi `mqtt` e `db` non sono più raggiungibili, impostare `MQTT_HOST=127.0.0.1` e `DB_HOST=127.0.0.1` (le porte 1883 e 3306 sono pubblicate su `127.0.0.1`). L'interfaccia `can0` va attivata sul Raspberry (es. `sudo ip link set can0 up type can bitrate 500000`).
+6. `docker compose up -d --build`, poi verificare in SCADA "Gateway online (socketcan)" e provare "Set devices".
 
-Sul Mac non c'è un bus CAN: lì si lascia `CAN_SENDER=console`.
+Sul Mac non c'è un bus CAN: lì si lascia `DEVICE_BUS=emulator`.
+
+**Aggiungere un valore o un comando a un modulo SCADA** (es. tensione): aggiungere il campo al payload in `TOPICS.md`, farlo pubblicare dal bus in `devices/<ch>/state` (prima nell'emulatore), mostrarlo in `ScadaModule.vue`, aggiungere un caso in `tests/scada.test.js`.
 
 ### Modificare il database
 
@@ -350,6 +367,7 @@ Da controllare a ogni rilascio, e sempre prima di esporre il sistema fuori dalla
 - [ ] `docker/.env` con password robuste, diverse da quelle di esempio, non presente su GitHub;
 - [ ] phpMyAdmin (`--profile tools`) e la vecchia app (`--profile legacy`, usa `root/root`) spenti sul Raspberry;
 - [ ] porta del database pubblicata solo su `127.0.0.1` (impostazione predefinita di `compose.yml`);
+- [ ] il broker MQTT accetta connessioni anonime ed è pensato per la rete locale: la porta 1883 è pubblicata solo su `127.0.0.1`, ma `/mqtt` è raggiungibile da chiunque apra l'interfaccia (e può inviare comandi ai moduli); prima di esporre il sistema aggiungere utenti e password (`password_file` in `docker/mosquitto/mosquitto.conf`);
 - [ ] query sempre con istruzioni preparate PDO;
 - [ ] nessun `v-html` con dati inseriti dall'utente;
 - [ ] `npm audit` senza vulnerabilità alte;
@@ -362,8 +380,10 @@ Da controllare a ogni rilascio, e sempre prima di esporre il sistema fuori dalla
 | Sintomo | Causa probabile | Soluzione |
 |---|---|---|
 | Spia "offline" nell'interfaccia | API ferma o database non ancora pronto | `docker compose ps`, `docker compose logs api db` |
-| "Set devices" risponde con errore 502 | servizio `canbus` fermo o in errore | `docker compose ps canbus`, `docker compose logs canbus`, poi `docker compose up -d canbus` |
-| "Set devices" risponde con errore 409 | un invio precedente è ancora in corso | attendere e riprovare |
+| SCADA mostra "Broker disconnected" | container `mqtt` fermo o `/mqtt` non inoltrato da nginx | `docker compose ps mqtt`, `docker compose logs mqtt web` |
+| SCADA mostra "Gateway offline" e `---` | container `canbus` fermo o in errore | `docker compose logs canbus`, poi `docker compose up -d canbus` |
+| "Set devices" disattivato | broker non collegato, modifiche non salvate o nessun canale usato | salvare la configurazione, controllare la spia del broker |
+| "Set devices" risponde con un errore | un caricamento precedente è ancora in corso, oppure errore del gateway | riprovare; leggere `docker compose logs canbus` |
 | `imposta DB_PASSWORD nel file .env` | manca `docker/.env` | `cp .env.example .env` nella cartella `docker/` |
 | Una soglia cambiata non ha effetto | il frontend legge le regole alla build | `docker compose up -d --build` |
 | La tabella non esiste | volume del database creato prima dello schema | applicare `vue/db/init/01_schema.sql` a mano come una migrazione oppure, **perdendo i dati**, `docker compose down -v` e riavviare |

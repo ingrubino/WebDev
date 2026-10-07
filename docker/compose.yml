@@ -5,6 +5,8 @@
 #   docker compose up -d --build                 # avvio
 #   docker compose --profile tools up -d         # + phpMyAdmin
 #   docker compose --profile legacy up -d        # + vecchia app PHP (cartella src) su :8082
+#
+# Pagina SCADA: browser <-> nginx /mqtt (WebSocket) <-> mqtt (Mosquitto) <-> canbus (gateway Python)
 
 name: webdev-vue   # diverso dal vecchio stack nella radice (progetto "webdev"), per non condividere container e volumi
 
@@ -18,6 +20,7 @@ services:
       - "${WEB_PORT:-8080}:80"
     depends_on:
       - api
+      - mqtt
     restart: unless-stopped
 
   api:
@@ -30,7 +33,6 @@ services:
       DB_NAME: ${DB_NAME:-testdb}
       DB_USER: ${DB_USER:-app}
       DB_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD nel file .env}
-      CANBUS_URL: http://canbus:8000         # servizio "Set devices"
     depends_on:
       db:
         condition: service_healthy
@@ -42,9 +44,18 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # Programma Python "Set devices": legge channel_config e invia i parametri ai dispositivi.
-  # Per ora stampa a video: docker compose logs -f canbus
-  # Lancio a mano: docker compose exec canbus python set_devices.py
+  # Broker MQTT: unico canale tra interfaccia web e dispositivi (topic in vue/canbus/TOPICS.md)
+  mqtt:
+    image: eclipse-mosquitto:2
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      - "127.0.0.1:${MQTT_PORT:-1883}:1883"   # debug dalla macchina stessa: mosquitto_sub -h localhost -t '#' -v
+    restart: unless-stopped
+
+  # Gateway Python CAN <-> MQTT (oggi con emulatore dei dispositivi) e "Set devices".
+  # Log (parametri caricati, comandi): docker compose logs -f canbus
+  # Set devices a mano: docker compose exec canbus python set_devices.py
   canbus:
     image: ${IMAGE_PREFIX:-webdev}/canbus:${TAG:-latest}
     build:
@@ -54,10 +65,14 @@ services:
       DB_NAME: ${DB_NAME:-testdb}
       DB_USER: ${DB_USER:-app}
       DB_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD nel file .env}
-      CAN_SENDER: ${CAN_SENDER:-console}
+      MQTT_HOST: mqtt
+      DEVICE_BUS: ${DEVICE_BUS:-emulator}
+      SYNC_POWER: ${SYNC_POWER:-off}       # pulsante Sync della pagina SCADA all'avvio del gateway
     depends_on:
       db:
         condition: service_healthy
+      mqtt:
+        condition: service_started
     restart: unless-stopped
 
   db:

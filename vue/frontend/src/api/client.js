@@ -30,5 +30,5 @@ export const api = {
   deleteDevice: (id) => request('DELETE', `/devices/${enc(id)}`),
   getChannels: () => request('GET', '/channels'),
   saveChannels: (channels) => request('PUT', '/channels', { channels }),
-  setDevices: () => request('POST', '/channels/apply'),
+  // "Set devices" non passa dall'API: va al gateway Python via MQTT (src/mqtt.js)
 }

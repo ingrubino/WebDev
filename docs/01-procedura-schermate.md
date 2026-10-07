@@ -20,6 +20,7 @@ La versione PHP originale (`src/`) è già stata migrata così:
 | `delete.php` | pulsante "Remove" + `DELETE /api/devices/<nome>` | con richiesta di conferma |
 | `import.php` (non aveva una pagina) | `views/ImportCsv.vue` (`/import`) | anteprima, controlli, importazione dei soli dispositivi validi |
 | (nuova) | `views/ChannelConfig.vue` (`/channels`) | configurazione dei 12 canali: dispositivo e modalità AC/DC, salvata nella tabella `channel_config` per il programma di backend |
+| (nuova) | `views/Scada.vue` (`/scada`), `components/ScadaModule.vue` | pagina SCADA: 12 moduli con misure e comandi in tempo reale via MQTT |
 | `header.php`, `footer.php`, `stile.css` | `App.vue`, `assets/cockpit.css` | stesso tema "cockpit", più una spia di stato API/database |
 | `index.php` (phpinfo), `index2.php`, `script.js`, `test_class_genGraph.php` | non migrati | erano pagine di prova |
 
@@ -44,8 +45,8 @@ Elencare tutte le schermate che il sistema finale deve avere, anche quelle non a
 | 2 | Nuovo / dettaglio / modifica dispositivo (con import XML) | fatta | |
 | 3 | Import CSV | fatta | |
 | 3b | Configurazione canali (Configure channels) | fatta | |
-| 4 | Dashboard di monitoraggio (stato di tutti i dispositivi, allarmi attivi) | da definire | alta |
-| 5 | Stato del singolo dispositivo (misure in tempo reale, storico) | da definire | alta |
+| 4 | SCADA: stato e comandi dei 12 moduli in tempo reale (MQTT, oggi con emulatore) | fatta | |
+| 5 | Stato del singolo dispositivo (storico delle misure, grafico nel tempo) | da definire | alta |
 | 6 | Configurazione parametri del dispositivo (soglie, comandi) | da definire | media |
 | 7 | Registro eventi e allarmi | da definire | media |
 | 8 | Accesso e utenti (login) | da definire | bassa in rete locale, alta se esposto |
@@ -108,9 +109,34 @@ La tabella "dati inseriti" diventa direttamente le regole di validazione del Pas
   | dispositivo | menu a discesa | no ("— not used —") | deve essere un dispositivo esistente; lo stesso dispositivo può stare su più canali | `Unknown device` |
   | modalità | AC / DC | sì | uno dei valori di `modes`; predefinito `AC` | `Choose AC or DC` |
 
-- **Azioni:** Save configuration, Discard changes, **Set devices**. "Set devices" avvia il programma Python `canbus`, che legge la configurazione salvata e, per ogni canale usato, la curva e il vettore del dispositivo, e li invia ai dispositivi esterni (per ora li stampa nel terminale). Il pulsante è disattivato se ci sono modifiche non salvate ("Save the configuration first") o se nessun canale è usato; il risultato compare nel pannello "Set devices output".
+- **Azioni:** Save configuration, Discard changes, **Set devices**. "Set devices" pubblica il comando MQTT `system/set_devices/start`; il gateway Python (`canbus`) legge la configurazione salvata e, per ogni canale usato, la curva e il vettore del dispositivo, li invia ai dispositivi (oggi all'emulatore, che li stampa nel log) e risponde su `system/set_devices/result`. Il pulsante è disattivato se ci sono modifiche non salvate ("Save the configuration first"), se nessun canale è usato o se il broker MQTT non è collegato; il risultato compare nel pannello "Set devices output".
 - **Dati salvati:** tabella `channel_config` (`channel` 1–12, `device` o `NULL`, `mode` `AC`/`DC`, `updated_at`). Rinominare un dispositivo aggiorna i canali; eliminarlo li lascia liberi (`NULL`).
 - **Regole configurabili:** `vue/config/channel-rules.json` (`channels`: numero di righe, `modes`, `defaultMode`); dopo una modifica serve `docker compose up -d --build`.
+
+### Esempio: la scheda della schermata "SCADA"
+
+- **Scopo:** vedere in tempo reale lo stato dei 12 moduli e comandarli.
+- **URL:** `/scada` (voce "SCADA" nella barra in alto) · **Dati:** MQTT, non l'API REST (topic in [vue/canbus/TOPICS.md](../vue/canbus/TOPICS.md)); intestazioni dei moduli da `GET /api/channels`.
+- **Disposizione:** 12 moduli in una griglia; il numero di colonne si imposta in `vue/config/scada.json` (`columns: 3` → 4 righe; 4 → 3 righe; 6 → 2 righe). Su schermi stretti diventano 2 colonne (sotto 900 px) e 1 colonna (sotto 560 px).
+- **Ogni modulo:** intestazione "CH n" con dispositivo e AC/DC presi da `channel_config`; display corrente (A), temperatura (°C) ed E (codice errore); LED; interruttori sync/manual e ON/OFF.
+- **Valori ammessi** (`limits` in `vue/config/scada.json`, uguali a `LIMITS` in `vue/canbus/gateway.py`):
+
+  | grandezza | minimo | massimo | note |
+  |---|---|---|---|
+  | corrente (A) | -10000 | 10000 | il segno negativo è ammesso |
+  | temperatura (°C) | 0 | 150 | |
+  | codice errore | 0 | 255 | intero; 0 = nessun errore |
+
+  Un valore fuori limite viene scartato dal gateway (pubblicato come `null` e scritto nel log) e il display mostra `---`.
+- **LED:** verde se il codice errore è ≤ 15, rosso se è > 15 (soglia `alarmAbove` in `scada.json`), grigio se mancano dati.
+- **Logica sync/manual:**
+  - in cima alla pagina c'è un interruttore unico **Sync ON/OFF** con il contatore "N module(s) in sync";
+  - i moduli in **sync** seguono quell'interruttore e il loro ON/OFF è bloccato; il gateway ignora i comandi di accensione del singolo modulo e riallinea quelli che divergono (al massimo ogni 2 secondi);
+  - i moduli in **manual** usano il proprio interruttore ON/OFF; passando a manual la pagina invia `{"control": "manual", "power": <valore attuale>}`, così il modulo non cambia stato;
+  - all'avvio del gateway il Sync è OFF (variabile `SYNC_POWER`, predefinito `off`) e i moduli emulati partono in sync e spenti.
+- **Dati mostrati:** `devices/<ch>/state`, circa ogni secondo. Gli interruttori mostrano lo stato **riportato dal dispositivo**, non quello richiesto: un comando (`devices/<ch>/cmd`) si vede solo quando arriva lo stato successivo.
+- **Stati:** in cima alla pagina "Broker connected/disconnected" e "Gateway online (emulator)/offline". Se il broker o il gateway non rispondono, o un modulo non manda dati da `staleAfterSeconds` secondi (5), il modulo mostra `---` e gli interruttori sono disattivati.
+- **Collaudo:** con l'emulatore i 12 moduli si aggiornano; con Sync ON tutti i moduli in sync si accendono insieme e il loro ON/OFF resta bloccato; un modulo in manual si accende e spegne da solo, la corrente va a 0 e la temperatura scende; sopra 70 °C l'emulatore dà errore 5 (LED verde), sopra 85 °C errore 20 (LED rosso); fermando il gateway (`docker compose stop canbus`) la pagina mostra "Gateway offline" e `---`.
 
 ---
 
@@ -125,7 +151,7 @@ Per ogni schermata nuova:
    - JSON in ingresso e in uscita;
    - `422` con `{ "error": "...", "fields": { "campo": "messaggio" } }` per errori di validazione;
    - `404` risorsa inesistente, `409` conflitto (nome già usato).
-3. **Aggiornamento in tempo reale** (monitoraggio): partire con un polling ogni N secondi, come fa già la spia online/offline in `App.vue` (ogni 15 secondi); passare a Server-Sent Events o WebSocket solo se serve un aggiornamento sotto il secondo.
+3. **Aggiornamento in tempo reale**: i dati dei dispositivi arrivano via MQTT (broker Mosquitto, nel browser su WebSocket `/mqtt`), come nella pagina SCADA. Per un dato nuovo si definisce prima il topic e il payload in `vue/canbus/TOPICS.md`, poi lo si pubblica dal gateway e lo si legge nella pagina. Per dati che cambiano di rado e stanno nel database basta un polling ogni N secondi, come la spia online/offline in `App.vue`.
 
 API attuale, per riferimento:
 
@@ -140,7 +166,6 @@ API attuale, per riferimento:
 | `DELETE` | `/api/devices/<nome>` | `204` oppure `404` |
 | `GET` | `/api/channels` | `{ channels: [{ channel, device, mode }, ...] }`, sempre 12 righe |
 | `PUT` | `/api/channels` | sostituisce tutta la configurazione `{ channels: [{ device, mode }, ...] }`; `200`, `422` |
-| `POST` | `/api/channels/apply` | "Set devices": `{ sent, channels: [{ channel, device, mode, status, points }], log }`; `502` se il servizio `canbus` non risponde, `409` se un invio è già in corso |
 
 Le chiavi degli errori sono le stesse del form (`identifier`, `matrix`, `matrix.3.0`, `vector.2`, `channels.4.device`, `channels.4.mode`): così l'errore restituito dal server compare accanto al campo giusto.
 
@@ -164,6 +189,9 @@ Riutilizzare prima di creare:
 |---|---|
 | `components/FormField.vue` | qualsiasi campo di input con il suo messaggio d'errore |
 | `components/CartesianChart.vue` | qualsiasi grafico X/Y (curve, andamento delle misure nel tempo) |
+| `components/SlideSwitch.vue` | interruttore a due posizioni (es. sync/manual, ON/OFF) che mostra lo stato reale; `null` = sconosciuto |
+| `components/ScadaModule.vue` | modulo completo di un canale (display, LED, interruttori), riusabile in altre pagine di monitoraggio |
+| `src/mqtt.js` | collegamento al broker MQTT dal browser (stato della connessione, iscrizione ai topic, invio comandi) |
 | `components/FilePicker.vue` | scelta di un file: pulsante "Choose file" e testo "No file selected" o nome del file; proprietà `accept` e `label`, evento `select` |
 | `components/ConfirmDialog.vue` + `askConfirm()` da `src/confirm.js` | richiesta di conferma al posto di `window.confirm()`: `await askConfirm('Remove device?', { okLabel: 'Remove', danger: true })` restituisce `true` o `false`; pulsanti ad es. Leave/Cancel, Remove/Cancel, Overwrite/Cancel |
 | classi `.panel`, `.list`, `.split`, `.message`, `.indicator` in `assets/cockpit.css` | riquadri, tabelle, messaggi, spie di stato |

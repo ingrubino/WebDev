@@ -151,3 +151,51 @@ dialog.confirm p { margin-top: 0; }
   background: var(--accent-strong); box-shadow: 0 0 10px var(--accent-strong);
 }
 .indicator.alert { border-color: var(--error); background: var(--error); box-shadow: 0 0 12px var(--error); }
+
+/* Pagina SCADA: griglia di moduli (colonne da config/scada.json, meno colonne su schermi stretti) */
+.scada-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.scada-grid { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+@media (max-width: 900px) { .scada-grid { grid-template-columns: repeat(min(var(--cols, 3), 2), minmax(0, 1fr)); } }
+@media (max-width: 560px) { .scada-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.scada-module {
+  background: #d9d9d9; color: #111; border-radius: 10px; padding: 12px 14px;
+  border: 2px solid var(--accent-strong); font-family: 'Segoe UI', sans-serif;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.scada-module header { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.scada-module header .device { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.scada-module .tag { font-size: 0.75rem; font-weight: 700; border: 1px solid #111; border-radius: 4px; padding: 0 5px; }
+.scada-module.no-data .value { color: #888; }
+.readouts { display: grid; grid-template-columns: minmax(0, 1fr) 56px 28px; row-gap: 6px; align-items: center; }
+.readouts .value {
+  background: #fff; border: 1px solid #111; border-right: none; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.readouts .unit {
+  background: #000; height: 44px; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 1.5rem; font-weight: 800;
+  text-shadow: -1px -1px 0 #888, 1px -1px 0 #888, -1px 1px 0 #888, 1px 1px 0 #888;
+}
+.led { width: 18px; height: 18px; border-radius: 50%; justify-self: end; background: #666; border: 1px solid #222; }
+
+.slide-switch { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; font-weight: 600; }
+.slide-switch > span:first-child { text-align: right; }
+.slide-switch > span { opacity: 0.55; }
+.slide-switch > span.active { opacity: 1; }
+.slide-switch button {
+  width: 64px; height: 30px; padding: 2px; border-radius: 15px; border: 2px solid #111;
+  background: #111; display: flex; justify-content: flex-start; box-shadow: none; margin: 0;
+}
+.slide-switch button.right { justify-content: flex-end; }
+.slide-switch .knob { width: 22px; height: 22px; border-radius: 50%; background: #fff; }
+.slide-switch.unknown .knob { opacity: 0.3; }
+.slide-switch button:disabled { opacity: 0.45; cursor: not-allowed; }
+.slide-switch button:focus-visible { outline: 3px solid var(--warn); outline-offset: 2px; }
+.slide-switch button:hover:not(:disabled) { background: #111; border-color: var(--warn); box-shadow: none; }
+.led.green { background: #1aff4a; box-shadow: 0 0 10px #1aff4a; }
+.led.red { background: #ff1a1a; box-shadow: 0 0 10px #ff1a1a; }
+.sync-control { display: flex; align-items: center; gap: 12px; margin-left: auto; padding: 8px 14px; background: #d9d9d9; color: #111; border-radius: 10px; border: 2px solid var(--accent-strong); font-family: 'Segoe UI', sans-serif; font-weight: 700; }
+.sync-control .slide-switch { grid-template-columns: auto auto auto; }
+.sync-control .hint { color: #333; font-weight: 400; }

@@ -10,7 +10,7 @@
 //   DELETE /api/devices/{id}        elimina dispositivo
 //   GET    /api/channels            configurazione dei canali (sempre N righe, vedi config/channel-rules.json)
 //   PUT    /api/channels            sostituisce l'intera configurazione {channels:[{device, mode}, ...]}
-//   POST   /api/channels/apply      "Set devices": avvia il servizio Python canbus (vedi vue/canbus)
+//   ("Set devices" e la pagina SCADA non passano dall'API: usano MQTT, vedi vue/canbus/TOPICS.md)
 declare(strict_types=1);
 
 require __DIR__ . '/../src/Db.php';
@@ -54,19 +54,6 @@ try {
 
     if ($segments === ['rules'] && $method === 'GET') {
         respond(200, $validator->rules());
-    }
-
-    if ($segments === ['channels', 'apply'] && $method === 'POST') {
-        // Il servizio canbus legge da solo la configurazione salvata e invia i parametri ai dispositivi
-        $url = rtrim(getenv('CANBUS_URL') ?: 'http://canbus:8000', '/') . '/apply';
-        $ctx = stream_context_create(['http' => [
-            'method' => 'POST', 'header' => "Content-Type: application/json\r\n", 'content' => '{}',
-            'timeout' => 60, 'ignore_errors' => true,
-        ]]);
-        $body = @file_get_contents($url, false, $ctx);
-        if ($body === false) respond(502, ['error' => 'Set devices service (canbus) unreachable']);
-        preg_match('#^HTTP/\S+ (\d{3})#', $http_response_header[0] ?? '', $m);
-        respond((int)($m[1] ?? 502), json_decode($body, true) ?? ['error' => 'Invalid response from canbus service']);
     }
 
     if ($segments === ['channels'] && in_array($method, ['GET', 'PUT'], true)) {

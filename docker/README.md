@@ -4,9 +4,10 @@ Questa cartella contiene tutto il necessario per eseguire l'interfaccia Vue (`..
 
 | Servizio | Immagine | Cosa fa | Porta |
 |---|---|---|---|
-| `web` | `webdev/web` (da `frontend.Dockerfile`) | build Vue + nginx; inoltra `/api/` al backend | `8080` |
+| `web` | `webdev/web` (da `frontend.Dockerfile`) | build Vue + nginx; inoltra `/api/` al backend e `/mqtt` (WebSocket) al broker | `8080` |
 | `api` | `webdev/api` (da `../vue/api/Dockerfile`) | API PHP JSON | interna |
-| `canbus` | `webdev/canbus` (da `../vue/canbus/Dockerfile`) | programma Python "Set devices": invia i parametri ai dispositivi (`CAN_SENDER`, default `console`) | interna (8000) |
+| `mqtt` | `eclipse-mosquitto:2` | broker MQTT: unico canale tra pagina SCADA e dispositivi (accesso anonimo, rete locale) | `127.0.0.1:1883` (debug) |
+| `canbus` | `webdev/canbus` (da `../vue/canbus/Dockerfile`) | gateway Python CAN ↔ MQTT (`gateway.py`) e "Set devices"; dispositivi da `DEVICE_BUS`, default `emulator` | interna |
 | `db` | `mariadb:11.4` | database; schema da `../vue/db/init` al primo avvio | `127.0.0.1:3306` |
 | `phpmyadmin` | `phpmyadmin:5` | amministrazione DB (profilo `tools`) | `8081` |
 | `legacy` | `webdev/api` + `../src` | vecchia app PHP per confronto (profilo `legacy`) | `8082` |
@@ -19,8 +20,9 @@ docker/
 ├─ compose.dev.yml             override per sviluppo con hot reload
 ├─ frontend.Dockerfile         multi-stage: node (build) -> nginx (runtime)
 ├─ frontend.Dockerfile.dockerignore
-├─ nginx/default.conf          SPA + proxy /api (produzione)
-├─ nginx/dev.conf              proxy verso Vite + /api (sviluppo)
+├─ nginx/default.conf          SPA + proxy /api e /mqtt (produzione)
+├─ nginx/dev.conf              proxy verso Vite + /api e /mqtt (sviluppo)
+├─ mosquitto/mosquitto.conf    broker MQTT: listener 1883 + WebSocket 9001
 ├─ docker-bake.hcl             build multi-architettura con buildx
 └─ .env.example                porte, password, nomi immagini
 ```
@@ -51,13 +53,41 @@ docker compose -f compose.yml -f compose.dev.yml up
 
 Su http://localhost:8080 nginx inoltra `/` al server Vite e `/api/` al PHP. Le modifiche in `../vue/frontend` e `../vue/api` si vedono subito, senza ricostruire le immagini. Non serve installare Node sul Mac.
 
+## MQTT e pagina SCADA
+
+```
+browser ── WebSocket /mqtt ──> nginx (web) ──> mqtt:9001
+                                                  │  MQTT 1883
+                                       canbus (gateway.py) ── emulatore / bus CAN
+```
+
+- Il browser non apre porte nuove: si collega a `ws://<host>:8080/mqtt`, che nginx inoltra al broker.
+- I topic sono descritti in `../vue/canbus/TOPICS.md`.
+- Per guardare il traffico dalla macchina che esegue lo stack: `mosquitto_sub -h localhost -t '#' -v` (porta `MQTT_PORT`, default 1883, esposta solo su `127.0.0.1`).
+- `DEVICE_BUS=emulator` (default) simula i dispositivi; log con `docker compose logs -f canbus`.
+- `SYNC_POWER=off` (default) oppure `on`: stato del pulsante Sync della pagina SCADA quando parte il gateway. Dopo averlo cambiato in `.env`: `docker compose up -d canbus`.
+- `mqtt` è un'immagine pronta, quindi `docker-bake.hcl` non cambia.
+
+### Bus CAN reale (in futuro)
+
+L'interfaccia `can0` del Raspberry vive nella rete dell'host, non in quella dei container. Il servizio `canbus` dovrà quindi girare con `network_mode: host`, e da lì raggiungerà broker e database sulle porte già esposte su `127.0.0.1`:
+
+```yaml
+  canbus:
+    network_mode: host
+    environment:
+      MQTT_HOST: 127.0.0.1
+      DB_HOST: 127.0.0.1
+      DEVICE_BUS: can          # valore definito in vue/canbus
+```
+
 ## Architetture supportate
 
 | Piattaforma | Esempio | Supporto |
 |---|---|---|
 | `linux/arm64` | Mac M1/M2/M3, Raspberry Pi 3/4/5 con OS **64 bit** | completo (consigliato) |
 | `linux/amd64` | PC Intel/AMD | completo |
-| `linux/arm/v7` | Raspberry Pi con OS 32 bit | solo `web`, `api`, `phpmyadmin`: **l'immagine ufficiale MariaDB non esiste per armv7** |
+| `linux/arm/v7` | Raspberry Pi con OS 32 bit | non supportato per lo stack completo: **l'immagine ufficiale MariaDB non esiste per armv7** (Mosquitto usa la variante arm/v6) |
 
 Sul Raspberry usa Raspberry Pi OS **64 bit** (verifica con `uname -m`: deve dare `aarch64`).
 
@@ -136,6 +166,27 @@ Docker ha perso la connessione mentre scaricava un'immagine da Docker Hub (spess
    ```
 2. Chiudi l'eventuale VPN o proxy e riavvia Docker Desktop (icona della balena → Restart).
 3. Se l'errore resta: Docker Desktop → Settings → General, disattiva **"Use containerd for pulling and storing images"**, premi *Apply & restart* e riprova.
+
+### `Bind for 0.0.0.0:1883 failed: port is already allocated`
+
+Sulla macchina c'è già un altro broker MQTT (di solito un Mosquitto installato sul Mac) sulla porta 1883. Puoi:
+
+- scoprire chi la occupa: `lsof -nP -iTCP:1883 -sTCP:LISTEN`, e fermarlo se non serve (con Homebrew: `brew services stop mosquitto`);
+- oppure lasciarlo e spostare la porta di debug dello stack: in `.env` metti `MQTT_PORT=1884`, poi `docker compose up -d`.
+
+La porta interna resta 1883: interfaccia e gateway funzionano lo stesso. Cambia solo il comando di debug: `mosquitto_sub -h localhost -p 1884 -t '#' -v`.
+
+### `429 Too Many Requests` scaricando un'immagine
+
+Docker Hub limita i download anonimi. Accedi con `docker login` (account gratuito) oppure scarica l'immagine dal mirror di Google e rinominala:
+
+```bash
+docker pull mirror.gcr.io/library/eclipse-mosquitto:2
+docker tag mirror.gcr.io/library/eclipse-mosquitto:2 eclipse-mosquitto:2
+docker compose up -d
+```
+
+Lo stesso vale per le altre immagini ufficiali (`mariadb:11.4`, `nginx`, `node`, `php`): `mirror.gcr.io/library/<nome>:<tag>`.
 
 ### `container webdev-db-1 is unhealthy` e compaiono i container `mysql` / `php-apache`
 

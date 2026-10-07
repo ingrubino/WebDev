@@ -1,0 +1,11 @@
+{
+  "_comment": "Pagina SCADA, letta dal frontend alla build (modificare e ricostruire). columns = moduli per riga (12 moduli: 3 -> 4 righe, 4 -> 3 righe, 6 -> 2 righe). staleAfterSeconds = dopo quanti secondi senza dati un modulo mostra ---. limits = valori ammessi (fuori limite -> ---), uguali a LIMITS in vue/canbus/gateway.py. alarmAbove = LED rosso se il codice errore supera questo valore, altrimenti verde.",
+  "columns": 3,
+  "staleAfterSeconds": 5,
+  "limits": {
+    "current": { "min": -10000, "max": 10000 },
+    "temperature": { "min": 0, "max": 150 },
+    "error": { "min": 0, "max": 255 }
+  },
+  "alarmAbove": 15
+}

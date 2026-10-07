@@ -3,7 +3,8 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
 // In sviluppo (npm run dev sul Mac) le chiamate /api vengono inoltrate allo stack Docker
-// avviato da ../../docker (nginx su localhost:8080). Cambiare con VITE_API_TARGET=http://host:porta.
+// avviato da ../../docker (nginx su localhost:8080), così come /mqtt (WebSocket verso il broker MQTT).
+// Cambiare con VITE_API_TARGET=http://host:porta.
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -15,6 +16,9 @@ export default defineConfig({
   server: {
     host: true,
     fs: { allow: ['..'] },
-    proxy: { '/api': process.env.VITE_API_TARGET || 'http://localhost:8080' },
+    proxy: {
+      '/api': process.env.VITE_API_TARGET || 'http://localhost:8080',
+      '/mqtt': { target: process.env.VITE_API_TARGET || 'http://localhost:8080', ws: true },
+    },
   },
 })

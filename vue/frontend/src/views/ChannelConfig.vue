@@ -1,11 +1,12 @@
 <script setup>
 // Configurazione canali: per ogni canale un dispositivo dell'elenco e la modalità AC/DC.
 // Salvata nella tabella channel_config, letta dal programma di backend.
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/api/client'
 import { channelRules, toChannelForm, validateChannels } from '@/validation/channels'
 import { askConfirm } from '@/confirm'
+import { live, startSetDevices, useLive } from '@/mqtt'
 
 const rows = ref(toChannelForm())
 const devices = ref([])
@@ -31,6 +32,9 @@ function setRows(saved) {
   rows.value = toChannelForm(saved)
   snapshot.value = JSON.stringify(rows.value)
 }
+
+const releaseLive = useLive() // Set devices viaggia su MQTT
+onUnmounted(releaseLive)
 
 onMounted(async () => {
   try {
@@ -68,16 +72,18 @@ function reset() {
   message.value = { type: '', text: '' }
 }
 
-// "Set devices": il programma esterno legge la configurazione SALVATA, quindi prima va salvata
+// "Set devices": start via MQTT al gateway Python, che legge la configurazione SALVATA
+// (quindi prima va salvata) e risponde con il riepilogo
 async function setDevices() {
   applying.value = true
+  applyLog.value = []
   message.value = { type: '', text: '' }
   try {
-    const result = await api.setDevices()
-    applyLog.value = result.log
+    const result = await startSetDevices()
+    applyLog.value = result.log || []
+    if (!result.ok) throw new Error(result.error || 'Set devices failed')
     message.value = { type: 'ok', text: `Devices set: ${result.sent} channel(s) sent.` }
   } catch (e) {
-    applyLog.value = []
     message.value = { type: 'error', text: e.message }
   } finally {
     applying.value = false
@@ -133,8 +139,8 @@ onBeforeRouteLeave(async () => {
       <button type="button" :disabled="!dirty || saving" @click="reset">Discard changes</button>
       <button
         type="button"
-        :disabled="dirty || saving || applying || !usedCount"
-        :title="dirty ? 'Save the configuration first' : !usedCount ? 'No channel in use' : 'Send the saved configuration to the devices'"
+        :disabled="dirty || saving || applying || !usedCount || !live.connected"
+        :title="dirty ? 'Save the configuration first' : !usedCount ? 'No channel in use' : !live.connected ? 'MQTT broker not connected' : 'Send the saved configuration to the devices'"
         @click="setDevices"
       >{{ applying ? 'Setting…' : 'Set devices' }}</button>
       <span v-if="submitted && errorCount" class="error">{{ errorCount }} field(s) to fix</span>

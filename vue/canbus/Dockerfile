@@ -1,4 +1,4 @@
-# Servizio "Set devices": build context = cartella vue/canbus
+# Gateway CAN <-> MQTT (con emulatore) e "Set devices": build context = cartella vue/canbus
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -7,5 +7,4 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py ./
 
-EXPOSE 8000
-CMD ["python", "set_devices.py", "--serve"]
+CMD ["python", "gateway.py"]

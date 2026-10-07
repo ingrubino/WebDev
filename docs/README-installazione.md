@@ -9,7 +9,8 @@ Gira in container Docker ed è pensata per un **Raspberry Pi**; si prova prima s
 | Interfaccia | Vue 3 + Vite, servita da nginx |
 | API | PHP 8.2 (JSON) su Apache |
 | Database | MariaDB 11.4 (LTS) |
-| Invio ai dispositivi ("Set devices") | Python 3 (`canbus`), oggi stampa a video; in futuro bus CAN |
+| Messaggi in tempo reale | MQTT, broker Mosquitto 2 (`mqtt`), nel browser su WebSocket `/mqtt` |
+| Gateway dispositivi | Python 3 (`canbus`): MQTT ↔ bus dei dispositivi, "Set devices"; oggi con emulatore, in futuro bus CAN |
 | Strumenti (opzionali) | phpMyAdmin |
 
 ```mermaid
@@ -17,9 +18,10 @@ flowchart LR
     B[Browser] -->|:8080| W[web<br/>nginx + Vue]
     W -->|/api| A[api<br/>PHP]
     A --> D[(db<br/>MariaDB)]
-    A -->|Set devices| C[canbus<br/>Python]
+    W -->|/mqtt WebSocket| M[mqtt<br/>Mosquitto]
+    M <--> C[canbus<br/>gateway Python]
     C --> D
-    C -.->|futuro| X[bus CAN]
+    C <-.->|oggi emulatore, in futuro| X[bus CAN]
     P[phpMyAdmin<br/>:8081, opzionale] --> D
 ```
 
@@ -148,7 +150,9 @@ Tutte le impostazioni stanno nel file `docker/.env` (creato da `docker/.env.exam
 | `DB_USER` | `app` | Utente usato dall'API |
 | `DB_PASSWORD` | *(obbligatoria)* | Password dell'utente dell'API |
 | `DB_ROOT_PASSWORD` | *(obbligatoria)* | Password di amministrazione del database |
-| `CAN_SENDER` | `console` | Come "Set devices" invia i parametri: `console` stampa nel log del servizio `canbus` |
+| `MQTT_PORT` | `1883` | Porta del broker MQTT per il debug dalla macchina stessa (solo `127.0.0.1`) |
+| `SYNC_POWER` | `off` | Stato dell'interruttore Sync della pagina SCADA all'avvio del gateway (`on` oppure `off`) |
+| `DEVICE_BUS` | `emulator` | Collegamento ai dispositivi del gateway: `emulator` simula i 12 moduli |
 | `IMAGE_PREFIX` | `webdev` | Prefisso delle immagini (es. `ghcr.io/utente/webdev` per pubblicarle) |
 | `TAG` | `latest` | Versione delle immagini |
 
@@ -176,14 +180,18 @@ Non lasciare phpMyAdmin attivo sul Raspberry se non serve.
 | Dettaglio | `/devices/<nome>` | modifica, rinomina, grafico della curva, eliminazione con conferma |
 | Import CSV | `/import` | importazione di più dispositivi con anteprima; vengono salvati solo quelli validi |
 | Configurazione canali | `/channels` | 12 canali: per ognuno un dispositivo dell'elenco e la modalità AC/DC; salvati nella tabella `channel_config`. Il pulsante **Set devices** invia a ogni dispositivo la sua curva e la modalità |
+| SCADA | `/scada` | 12 moduli in tempo reale: corrente (A, da -10000 a 10000), temperatura (0–150 °C), codice errore (0–255), LED verde/rosso (rosso se errore > 15), interruttori sync/manual e ON/OFF. In cima, l'interruttore unico **Sync ON/OFF** comanda tutti i moduli in sync; quelli in manual usano il proprio ON/OFF. Colonne, limiti e soglia del LED in `vue/config/scada.json` |
 
-Per ora "Set devices" stampa i parametri invece di inviarli sul bus CAN. Si vedono nel pannello "Set devices output" della pagina oppure nel terminale:
+Per ora i dispositivi sono **simulati** da un emulatore nel gateway `canbus`: la pagina SCADA mostra dati realistici e "Set devices" stampa i parametri invece di inviarli sul bus CAN. Si vedono nel pannello "Set devices output" della pagina oppure nel terminale:
 
 ```bash
 cd docker
-docker compose logs -f canbus                         # output degli invii
-docker compose exec canbus python set_devices.py      # invio lanciato a mano
+docker compose logs -f canbus                         # attività del gateway
+docker compose exec canbus python set_devices.py      # Set devices lanciato a mano
+docker compose exec mqtt mosquitto_sub -t '#' -v      # tutti i messaggi MQTT
 ```
+
+I topic MQTT sono descritti in [vue/canbus/TOPICS.md](vue/canbus/TOPICS.md).
 
 La spia in alto a destra indica se API e database rispondono (verde "online").
 
@@ -317,6 +325,7 @@ docker compose exec -T db sh -c 'mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MA
 | Ho cambiato le password in `.env` ma non funzionano | Il database conserva quelle della prima creazione. Cambiale dentro MariaDB, oppure, **cancellando tutti i dati**, `docker compose down -v` e `docker compose up -d` |
 | `no matching manifest for linux/arm/v7` sul Raspberry | Il sistema è a 32 bit e MariaDB non esiste per armv7: installa Raspberry Pi OS **64 bit** |
 | `failed to copy: httpReadSeeker ... EOF` durante `docker compose up` | Download da Docker Hub interrotto. Scarica l'immagine da sola (`docker pull mariadb:11.4`) e rilancia. Se si ripete, chiudi VPN/proxy e riavvia Docker Desktop; se resta, in Docker Desktop → Settings → General disattiva "Use containerd for pulling and storing images" |
+| La pagina SCADA mostra `---` e "Gateway offline" | Il gateway `canbus` è fermo: `docker compose logs canbus`, poi `docker compose up -d canbus` |
 | `port is already allocated` | La porta è occupata: cambia `WEB_PORT` in `.env` |
 | `permission denied ... docker.sock` | Manca il gruppo docker: `sudo usermod -aG docker $USER`, poi esci e rientra |
 

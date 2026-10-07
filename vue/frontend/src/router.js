@@ -10,6 +10,7 @@ const routes = [
   { path: '/devices/:id', name: 'device-edit', component: DeviceEdit, props: true },
   { path: '/import', name: 'import', component: ImportCsv },
   { path: '/channels', name: 'channels', component: () => import('./views/ChannelConfig.vue') },
+  { path: '/scada', name: 'scada', component: () => import('./views/Scada.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
