@@ -32,3 +32,7 @@ services:
   canbus:
     volumes:
       - ../vue/canbus:/app   # dopo una modifica: docker compose restart canbus
+
+  mqtt:
+    ports:
+      - "127.0.0.1:${MQTT_PORT:-1884}:1883"   # 1884: la 1883 del Mac è occupata da un altro Mosquitto. mosquitto_sub -h localhost -p 1884 -t '#' -v

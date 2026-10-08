@@ -131,14 +131,14 @@ così stati, comandi e caricamento dei parametri non si contendono il bus. Topic
 cd ../docker
 docker compose logs -f canbus                     # parametri caricati e comandi ricevuti
 docker compose exec canbus python set_devices.py  # Set devices a mano (stesso percorso del pulsante)
-mosquitto_sub -h localhost -t '#' -v              # tutti i messaggi (se mosquitto-clients è installato)
+docker compose exec mqtt mosquitto_sub -t '#' -v  # tutti i messaggi MQTT
 ```
 
 Per il bus CAN reale: scrivere in `canbus/bus.py` una classe con gli stessi metodi di `EmulatorBus`
 (c'è un esempio commentato con python-can), registrarla in `BUSES`, aggiungere `python-can` a
 `requirements.txt` e avviare con `DEVICE_BUS=<nome>`. Pagina e topic non cambiano.
 Sul Raspberry il container dovrà vedere l'interfaccia CAN (es. `network_mode: host` per `can0`);
-in quel caso raggiunge broker e database su `127.0.0.1` (`MQTT_HOST`, `DB_HOST`).
+in quel caso il broker e il database vanno pubblicati sull'host e raggiunti su `127.0.0.1` (`MQTT_HOST`, `DB_HOST`), vedi `../docker/README.md`.
 
 Colonne della griglia SCADA: `config/scada.json` (`"columns": 3` → 4 righe da 3 moduli); letto alla build,
 quindi dopo la modifica `docker compose up -d --build web`. Su schermi stretti le colonne scendono a 2 e poi a 1.

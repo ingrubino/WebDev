@@ -49,8 +49,9 @@ services:
     image: eclipse-mosquitto:2
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-    ports:
-      - "127.0.0.1:${MQTT_PORT:-1883}:1883"   # debug dalla macchina stessa: mosquitto_sub -h localhost -t '#' -v
+    # Nessuna porta pubblicata: lo stack parte anche se sul computer c'è già un broker sulla 1883.
+    # Debug: docker compose exec mqtt mosquitto_sub -t '#' -v
+    # Porta sull'host solo in sviluppo (compose.dev.yml, variabile MQTT_PORT).
     restart: unless-stopped
 
   # Gateway Python CAN <-> MQTT (oggi con emulatore dei dispositivi) e "Set devices".

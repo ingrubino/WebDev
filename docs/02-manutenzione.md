@@ -238,7 +238,7 @@ Oggi il bus è `EmulatorBus`, che simula i 12 moduli (all'avvio in sync e spenti
 2. Registrarla nel dizionario `BUSES` con un nome, es. `"socketcan"`.
 3. In `vue/canbus/requirements.txt` attivare la riga `python-can==4.*`.
 4. In `docker/.env` impostare `DEVICE_BUS=socketcan`.
-5. Dare al container l'accesso all'interfaccia `can0` del Raspberry: nel servizio `canbus` di `docker/compose.yml` aggiungere `network_mode: host` e, poiché con la rete host i nomi `mqtt` e `db` non sono più raggiungibili, impostare `MQTT_HOST=127.0.0.1` e `DB_HOST=127.0.0.1` (le porte 1883 e 3306 sono pubblicate su `127.0.0.1`). L'interfaccia `can0` va attivata sul Raspberry (es. `sudo ip link set can0 up type can bitrate 500000`).
+5. Dare al container l'accesso all'interfaccia `can0` del Raspberry: nel servizio `canbus` di `docker/compose.yml` aggiungere `network_mode: host` e, poiché con la rete host i nomi `mqtt` e `db` non sono più raggiungibili, impostare `MQTT_HOST=127.0.0.1` e `DB_HOST=127.0.0.1`. La 3306 è già pubblicata su `127.0.0.1`; la 1883 no, quindi nel servizio `mqtt` di `compose.yml` va aggiunto `ports: ["127.0.0.1:1883:1883"]` (verificando che sul Raspberry non ci sia già un altro broker su quella porta). L'interfaccia `can0` va attivata sul Raspberry (es. `sudo ip link set can0 up type can bitrate 500000`).
 6. `docker compose up -d --build`, poi verificare in SCADA "Gateway online (socketcan)" e provare "Set devices".
 
 Sul Mac non c'è un bus CAN: lì si lascia `DEVICE_BUS=emulator`.
@@ -367,7 +367,7 @@ Da controllare a ogni rilascio, e sempre prima di esporre il sistema fuori dalla
 - [ ] `docker/.env` con password robuste, diverse da quelle di esempio, non presente su GitHub;
 - [ ] phpMyAdmin (`--profile tools`) e la vecchia app (`--profile legacy`, usa `root/root`) spenti sul Raspberry;
 - [ ] porta del database pubblicata solo su `127.0.0.1` (impostazione predefinita di `compose.yml`);
-- [ ] il broker MQTT accetta connessioni anonime ed è pensato per la rete locale: la porta 1883 è pubblicata solo su `127.0.0.1`, ma `/mqtt` è raggiungibile da chiunque apra l'interfaccia (e può inviare comandi ai moduli); prima di esporre il sistema aggiungere utenti e password (`password_file` in `docker/mosquitto/mosquitto.conf`);
+- [ ] il broker MQTT accetta connessioni anonime ed è pensato per la rete locale: il broker non è pubblicato da `compose.yml` (solo in sviluppo da `compose.dev.yml`, su `127.0.0.1:1884`), ma `/mqtt` è raggiungibile da chiunque apra l'interfaccia (e può inviare comandi ai moduli); prima di esporre il sistema aggiungere utenti e password (`password_file` in `docker/mosquitto/mosquitto.conf`);
 - [ ] query sempre con istruzioni preparate PDO;
 - [ ] nessun `v-html` con dati inseriti dall'utente;
 - [ ] `npm audit` senza vulnerabilità alte;
@@ -390,4 +390,5 @@ Da controllare a ogni rilascio, e sempre prima di esporre il sistema fuori dalla
 | Una modifica in `vue/db/init/` non ha effetto | lo schema iniziale gira solo al primo avvio | usare una migrazione |
 | `no matching manifest for linux/arm/v7` | Raspberry con sistema a 32 bit (MariaDB non esiste per armv7) | installare Raspberry Pi OS 64 bit |
 | Le modifiche al frontend non si vedono dopo `up -d` | immagine non ricostruita | `docker compose up -d --build`, poi ricaricare la pagina |
+| `port is already allocated` sulla porta MQTT (in sviluppo) | un altro programma usa già `MQTT_PORT` (predefinita 1884; la 1883 è lasciata libera per un eventuale Mosquitto installato sul Mac) | impostare un'altra porta in `docker/.env`, es. `MQTT_PORT=1885`; lo stack normale (`compose.yml`) non pubblica il broker e non ha questo problema |
 | Build lenta o interrotta sul Raspberry | memoria insufficiente durante `npm run build` | costruire sul Mac e copiare le immagini (sezione 8) |

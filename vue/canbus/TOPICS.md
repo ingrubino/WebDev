@@ -6,8 +6,8 @@ e dispositivi. Tutti i payload sono JSON UTF-8. `<ch>` = numero del canale, da 1
 Broker: Mosquitto (container `mqtt`).
 - dai container: `mqtt:1883`
 - dal browser: WebSocket `ws://<host>/mqtt` (inoltrato da nginx a `mqtt:9001`)
-- dal Mac / Raspberry per il debug: `localhost:1883`
-  (`mosquitto_sub -h localhost -t '#' -v`)
+- per il debug, tutti i messaggi: `docker compose exec mqtt mosquitto_sub -t '#' -v`
+  (la porta 1883 non è pubblicata sull'host; solo con `compose.dev.yml` è su `localhost:MQTT_PORT`)
 
 ## Stato dei dispositivi (gateway → interfaccia)
 

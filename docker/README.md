@@ -6,7 +6,7 @@ Questa cartella contiene tutto il necessario per eseguire l'interfaccia Vue (`..
 |---|---|---|---|
 | `web` | `webdev/web` (da `frontend.Dockerfile`) | build Vue + nginx; inoltra `/api/` al backend e `/mqtt` (WebSocket) al broker | `8080` |
 | `api` | `webdev/api` (da `../vue/api/Dockerfile`) | API PHP JSON | interna |
-| `mqtt` | `eclipse-mosquitto:2` | broker MQTT: unico canale tra pagina SCADA e dispositivi (accesso anonimo, rete locale) | `127.0.0.1:1883` (debug) |
+| `mqtt` | `eclipse-mosquitto:2` | broker MQTT: unico canale tra pagina SCADA e dispositivi (accesso anonimo, rete locale) | nessuna (solo in sviluppo: `127.0.0.1:1884`) |
 | `canbus` | `webdev/canbus` (da `../vue/canbus/Dockerfile`) | gateway Python CAN ↔ MQTT (`gateway.py`) e "Set devices"; dispositivi da `DEVICE_BUS`, default `emulator` | interna |
 | `db` | `mariadb:11.4` | database; schema da `../vue/db/init` al primo avvio | `127.0.0.1:3306` |
 | `phpmyadmin` | `phpmyadmin:5` | amministrazione DB (profilo `tools`) | `8081` |
@@ -63,16 +63,20 @@ browser ── WebSocket /mqtt ──> nginx (web) ──> mqtt:9001
 
 - Il browser non apre porte nuove: si collega a `ws://<host>:8080/mqtt`, che nginx inoltra al broker.
 - I topic sono descritti in `../vue/canbus/TOPICS.md`.
-- Per guardare il traffico dalla macchina che esegue lo stack: `mosquitto_sub -h localhost -t '#' -v` (porta `MQTT_PORT`, default 1883, esposta solo su `127.0.0.1`).
+- Per guardare il traffico: `docker compose exec mqtt mosquitto_sub -t '#' -v` (funziona sempre, non serve nessuna porta).
+- Il broker non pubblica porte sull'host, così lo stack parte anche se sul computer c'è già un altro Mosquitto. Solo con `compose.dev.yml` la porta è pubblicata su `127.0.0.1:${MQTT_PORT}` (default 1884, perché la 1883 è spesso occupata da un Mosquitto locale) per usare `mosquitto_sub`/MQTT Explorer dal Mac.
 - `DEVICE_BUS=emulator` (default) simula i dispositivi; log con `docker compose logs -f canbus`.
 - `SYNC_POWER=off` (default) oppure `on`: stato del pulsante Sync della pagina SCADA quando parte il gateway. Dopo averlo cambiato in `.env`: `docker compose up -d canbus`.
 - `mqtt` è un'immagine pronta, quindi `docker-bake.hcl` non cambia.
 
 ### Bus CAN reale (in futuro)
 
-L'interfaccia `can0` del Raspberry vive nella rete dell'host, non in quella dei container. Il servizio `canbus` dovrà quindi girare con `network_mode: host`, e da lì raggiungerà broker e database sulle porte già esposte su `127.0.0.1`:
+L'interfaccia `can0` del Raspberry vive nella rete dell'host, non in quella dei container. Il servizio `canbus` dovrà quindi girare con `network_mode: host`, e da lì raggiungerà broker e database su `127.0.0.1`. Il database è già pubblicato su `127.0.0.1:3306`; al broker va aggiunta la porta:
 
 ```yaml
+  mqtt:
+    ports:
+      - "127.0.0.1:1883:1883"
   canbus:
     network_mode: host
     environment:
@@ -169,12 +173,14 @@ Docker ha perso la connessione mentre scaricava un'immagine da Docker Hub (spess
 
 ### `Bind for 0.0.0.0:1883 failed: port is already allocated`
 
-Sulla macchina c'è già un altro broker MQTT (di solito un Mosquitto installato sul Mac) sulla porta 1883. Puoi:
+Sul computer c'è già un altro broker MQTT sulla porta 1883 (di solito un Mosquitto installato sul Mac). Dalla versione attuale `compose.yml` non pubblica più quella porta, quindi l'errore sparisce aggiornando i file della cartella `docker`. Verifica che sia così:
 
-- scoprire chi la occupa: `lsof -nP -iTCP:1883 -sTCP:LISTEN`, e fermarlo se non serve (con Homebrew: `brew services stop mosquitto`);
-- oppure lasciarlo e spostare la porta di debug dello stack: in `.env` metti `MQTT_PORT=1884`, poi `docker compose up -d`.
+```bash
+docker compose config | grep -A8 '^  mqtt:'    # non deve comparire "ports"
+docker compose up -d
+```
 
-La porta interna resta 1883: interfaccia e gateway funzionano lo stesso. Cambia solo il comando di debug: `mosquitto_sub -h localhost -p 1884 -t '#' -v`.
+Se compare in sviluppo (`compose.dev.yml`), il default è già `MQTT_PORT=1884`: scegli un'altra porta in `.env` oppure ferma il broker locale: `lsof -nP -iTCP:1883 -sTCP:LISTEN` per vedere chi è, `brew services stop mosquitto` se installato con Homebrew.
 
 ### `429 Too Many Requests` scaricando un'immagine
 

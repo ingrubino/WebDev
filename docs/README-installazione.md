@@ -150,7 +150,7 @@ Tutte le impostazioni stanno nel file `docker/.env` (creato da `docker/.env.exam
 | `DB_USER` | `app` | Utente usato dall'API |
 | `DB_PASSWORD` | *(obbligatoria)* | Password dell'utente dell'API |
 | `DB_ROOT_PASSWORD` | *(obbligatoria)* | Password di amministrazione del database |
-| `MQTT_PORT` | `1883` | Porta del broker MQTT per il debug dalla macchina stessa (solo `127.0.0.1`) |
+| `MQTT_PORT` | `1884` | Solo in modalità sviluppo (`compose.dev.yml`): porta su cui il broker MQTT è raggiungibile dalla macchina stessa (`127.0.0.1`), es. `mosquitto_sub -h localhost -p 1884 -t '#' -v`. Dentro Docker il broker usa sempre la 1883. Lo stack normale non la pubblica |
 | `SYNC_POWER` | `off` | Stato dell'interruttore Sync della pagina SCADA all'avvio del gateway (`on` oppure `off`) |
 | `DEVICE_BUS` | `emulator` | Collegamento ai dispositivi del gateway: `emulator` simula i 12 moduli |
 | `IMAGE_PREFIX` | `webdev` | Prefisso delle immagini (es. `ghcr.io/utente/webdev` per pubblicarle) |
@@ -327,6 +327,7 @@ docker compose exec -T db sh -c 'mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MA
 | `failed to copy: httpReadSeeker ... EOF` durante `docker compose up` | Download da Docker Hub interrotto. Scarica l'immagine da sola (`docker pull mariadb:11.4`) e rilancia. Se si ripete, chiudi VPN/proxy e riavvia Docker Desktop; se resta, in Docker Desktop → Settings → General disattiva "Use containerd for pulling and storing images" |
 | La pagina SCADA mostra `---` e "Gateway offline" | Il gateway `canbus` è fermo: `docker compose logs canbus`, poi `docker compose up -d canbus` |
 | `port is already allocated` | La porta è occupata: cambia `WEB_PORT` in `.env` |
+| `port is already allocated` sulla porta MQTT in modalità sviluppo | Un altro programma usa già `MQTT_PORT` (predefinita 1884): imposta un'altra porta in `.env`, es. `MQTT_PORT=1885` |
 | `permission denied ... docker.sock` | Manca il gruppo docker: `sudo usermod -aG docker $USER`, poi esci e rientra |
 
 ---
