@@ -11,7 +11,7 @@ Installazione e avvio dei container: vedi [`../docker`](../docker/README.md). Pr
 | Nuovo / modifica dispositivo, grafico dal vivo, caricamento XML, eliminazione | `/devices/new`, `/devices/<nome>` | `frontend/src/views/DeviceEdit.vue` | `storeTable2.php`, `save.php`, `save_xml.php`, `delete.php` |
 | Import CSV con anteprima e controlli | `/import` | `frontend/src/views/ImportCsv.vue` | `import.php` |
 | Configurazione canali (12 righe: dispositivo + AC/DC), link "Configure channels" nell'elenco, pulsante "Set devices" | `/channels` | `frontend/src/views/ChannelConfig.vue` | nuova |
-| SCADA: 12 moduli in griglia (corrente, temperatura, codice errore, LED verde/rosso, interruttori sync/manual e ON/OFF) più un pulsante Sync ON/OFF unico, dati in tempo reale via MQTT | `/scada` | `frontend/src/views/Scada.vue`, `components/ScadaModule.vue` | nuova |
+| SCADA: 12 moduli in griglia (corrente, temperatura, codice errore, LED verde/rosso, selettore Source e interruttore ON/OFF) più 4 interruttori globali ON/OFF 1..4, dati in tempo reale via MQTT | `/scada` | `frontend/src/views/Scada.vue`, `components/ScadaModule.vue` | nuova |
 
 Il salvataggio ora **sostituisce** le righe del dispositivo (la versione PHP le duplicava a ogni salvataggio) e permette di rinominarlo. Il file XML riempie il form: si controlla e poi si salva.
 
@@ -110,12 +110,18 @@ così stati, comandi e caricamento dei parametri non si contendono il bus. Topic
   interruttori della pagina pubblicano su `devices/<ch>/cmd` e mostrano sempre lo stato *riportato* dal
   dispositivo. Se il broker o il gateway non rispondono (o mancano dati da più di `staleAfterSeconds`),
   i visualizzatori mostrano `---` e gli interruttori si disattivano.
-- **Logiche SCADA** (decise da Luigi il 07/10/2026):
+- **Logiche SCADA** (decise da Luigi il 07/10/2026, interruttori ON/OFF 1..4 dall'08/10/2026):
   - LED **rosso** se il codice errore è maggiore di 15 (`alarmAbove`), altrimenti **verde** (grigio senza dati).
-  - Modulo in **manual**: comanda il proprio pulsante ON/OFF (passando a manual viene inviato il suo valore attuale).
-  - Modulo in **sync**: segue il pulsante **Sync ON/OFF** unico in cima alla pagina (`system/sync/cmd`);
-    il suo ON/OFF è bloccato. La logica sta nel gateway, che allinea i moduli in sync anche se un
-    dispositivo cambia stato da solo. All'avvio il pulsante sync è OFF (`SYNC_POWER`).
+  - In cima alla pagina ci sono 4 interruttori globali **ON/OFF 1..4** (`system/switch/<n>/cmd`), ognuno con
+    il numero di moduli collegati. Ogni modulo ha un selettore **Source**: Manual, ON/OFF 1, ..., ON/OFF 4.
+  - Source **Manual**: l'uscita segue l'ON/OFF del modulo (passando a Manual viene inviato il suo valore attuale).
+  - Source **ON/OFF n**: l'uscita segue l'interruttore globale n e l'ON/OFF del modulo è bloccato. La logica
+    sta nel gateway, che riallinea i moduli anche se un dispositivo cambia stato da solo.
+  - All'avvio del gateway i 4 interruttori sono OFF; l'emulatore parte con tutti i moduli su ON/OFF 1.
+  - **Uscita accesa = pericolo** (Luigi, 08/10/2026): un modulo con l'uscita ON (stato `power` riportato dal
+    dispositivo) ha la spia rossa lampeggiante **LIVE** nell'intestazione e il bordo del riquadro rosso; spento
+    mostra `OFF`, senza dati `---`. Anche gli interruttori ON/OFF 1..4 accesi hanno bordo rosso e spia LIVE.
+    La spia è distinta dal LED dell'errore (rosso = errore > 15).
   - Limiti: corrente da -10000 a 10000 A, temperatura da 0 a 150 °C, codice errore intero da 0 a 255.
     Valori fuori limite: il gateway li scarta (log) e la pagina mostra `---`. Limiti in `config/scada.json`
     **e** in `LIMITS` di `canbus/gateway.py`, da tenere uguali.

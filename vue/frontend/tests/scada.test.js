@@ -1,6 +1,6 @@
 // Test della logica SCADA (src/scada.js): eseguire con `npm test`.
 import { describe, expect, it } from 'vitest'
-import { display, gridColumns, isStale, ledColor, parseState, topicChannel } from '../src/scada'
+import { display, gridColumns, isStale, ledColor, liveState, parseSource, parseState, sourceLabel, topicChannel } from '../src/scada'
 
 describe('gridColumns', () => {
   it('uses the configured number of columns, limited to the modules', () => {
@@ -24,12 +24,13 @@ describe('topicChannel', () => {
 
 describe('parseState', () => {
   it('normalizes a gateway message', () => {
-    const s = parseState('{"current":-145.4,"temperature":80,"error":20,"control":"sync","power":"on"}')
-    expect(s).toEqual({ current: -145.4, temperature: 80, error: 20, control: 'sync', power: 'on' })
+    const s = parseState('{"current":-145.4,"temperature":80,"error":20,"source":3,"power":"on"}')
+    expect(s).toEqual({ current: -145.4, temperature: 80, error: 20, source: 3, power: 'on' })
+    expect(parseState('{"source":"manual"}').source).toBe('manual')
   })
   it('turns missing or wrong fields into null and rejects invalid JSON', () => {
-    expect(parseState('{"current":"x","error":"A1","control":"auto"}'))
-      .toEqual({ current: null, temperature: null, error: null, control: null, power: null })
+    expect(parseState('{"current":"x","error":"A1","source":"auto"}'))
+      .toEqual({ current: null, temperature: null, error: null, source: null, power: null })
     expect(parseState('not json')).toBeNull()
   })
   it('discards values outside the limits', () => {
@@ -41,6 +42,30 @@ describe('parseState', () => {
     expect(parseState('{"error":255}').error).toBe(255)
     expect(parseState('{"error":256}').error).toBeNull()
     expect(parseState('{"error":3.5}').error).toBeNull()
+  })
+})
+
+describe('parseSource and sourceLabel', () => {
+  it('accepts Manual or one of the switches ON/OFF 1..4', () => {
+    expect(parseSource('manual')).toBe('manual')
+    expect(parseSource(1)).toBe(1)
+    expect(parseSource(4)).toBe(4)
+    expect(parseSource(5)).toBeNull()
+    expect(parseSource('1')).toBeNull()
+    expect(parseSource('sync')).toBeNull()
+  })
+  it('names the source as in the selector', () => {
+    expect(sourceLabel('manual')).toBe('Manual')
+    expect(sourceLabel(2)).toBe('ON/OFF 2')
+  })
+})
+
+describe('liveState', () => {
+  it('is on only when the device reports power on', () => {
+    expect(liveState({ power: 'on' })).toBe('on')
+    expect(liveState({ power: 'off' })).toBe('off')
+    expect(liveState({ power: null })).toBeNull()
+    expect(liveState(null)).toBeNull()
   })
 })
 

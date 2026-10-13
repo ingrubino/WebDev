@@ -37,9 +37,10 @@ Come far evolvere l'interfaccia senza rompere quello che funziona: dove sta cosa
 | numero di canali, modalità ammesse (AC/DC), modalità predefinita | `vue/config/channel-rules.json` |
 | come viene controllata la configurazione dei canali | `vue/frontend/src/validation/channels.js` **e** `vue/api/src/ChannelValidator.php` |
 | la schermata dei canali e la sua tabella | `vue/frontend/src/views/ChannelConfig.vue`, `vue/api/src/ChannelRepository.php`, tabella `channel_config` (`vue/db/init/02_channel_config.sql`) |
-| la pagina SCADA | `vue/frontend/src/views/Scada.vue`, `components/ScadaModule.vue`, `components/SlideSwitch.vue`, `src/scada.js` (logica, testata in `tests/scada.test.js`) |
+| la pagina SCADA | `vue/frontend/src/views/Scada.vue`, `components/ScadaModule.vue`, `components/SlideSwitch.vue`, `src/scada.js` (logica, testata in `tests/scada.test.js`; la spia LIVE è calcolata da `liveState()`) |
+| aspetto della spia LIVE e del bordo rosso dei moduli accesi | classi `.live-badge` e `.live` in `vue/frontend/src/assets/cockpit.css` |
 | colonne della griglia SCADA, secondi prima di mostrare `---`, limiti dei valori, soglia del LED rosso | `vue/config/scada.json` (`columns`, `staleAfterSeconds`, `limits`, `alarmAbove`; letto alla build) |
-| limiti dei valori lato gateway, stato del Sync all'avvio | `LIMITS` in `vue/canbus/gateway.py` (deve coincidere con `limits` di `scada.json`), variabile `SYNC_POWER` |
+| limiti dei valori lato gateway, logica dei 4 interruttori comuni | `LIMITS` e gestione di `source` in `vue/canbus/gateway.py` (`LIMITS` deve coincidere con `limits` di `scada.json`) |
 | collegamento MQTT del browser | `vue/frontend/src/mqtt.js` (libreria npm `mqtt`), WebSocket `/mqtt` in `docker/nginx/default.conf` |
 | elenco dei topic e formato dei messaggi | `vue/canbus/TOPICS.md` (unico riferimento: aggiornarlo a ogni modifica) |
 | broker MQTT | container `mqtt` (eclipse-mosquitto:2), configurazione in `docker/mosquitto/mosquitto.conf` |
@@ -56,7 +57,7 @@ Come far evolvere l'interfaccia senza rompere quello che funziona: dove sta cosa
 | `components/FormField.vue` | qualsiasi campo di input con il suo messaggio d'errore |
 | `components/CartesianChart.vue` | qualsiasi grafico X/Y |
 | `components/SlideSwitch.vue` | interruttore a due posizioni che mostra lo stato reale del dispositivo |
-| `components/ScadaModule.vue` | modulo di un canale con display, LED e interruttori |
+| `components/ScadaModule.vue` | modulo di un canale con display, LED di errore, spia LIVE e interruttori |
 | `src/mqtt.js` | connessione MQTT dal browser |
 | `components/FilePicker.vue` | scelta di un file: pulsante "Choose file" e testo "No file selected" o nome del file; proprietà `accept` e `label`, evento `select` |
 | `components/ConfirmDialog.vue` + `askConfirm()` da `src/confirm.js` | richiesta di conferma al posto di `window.confirm()`: `await askConfirm('Remove device?', { okLabel: 'Remove', danger: true })` restituisce `true` o `false`; pulsanti ad es. Leave/Cancel, Remove/Cancel, Overwrite/Cancel |
@@ -230,9 +231,9 @@ docker compose exec mqtt mosquitto_sub -t '#' -v      # tutti i messaggi MQTT
 
 "Set devices": la pagina Configure channels pubblica `system/set_devices/start`; il gateway legge da `channel_config` dispositivo e modalità AC/DC di ogni canale usato, da `dataset` la curva tempo/corrente e il vettore, li invia al bus e risponde su `system/set_devices/result`. Un solo caricamento alla volta.
 
-Il gateway gestisce anche la logica sync: tiene lo stato dell'interruttore unico Sync (`system/sync/cmd`, `system/sync/state` retained), ignora i comandi di accensione dei moduli in sync e riallinea quelli che divergono; scarta i valori fuori da `LIMITS` (corrente ±10000 A, temperatura 0–150 °C, codice errore 0–255) pubblicandoli come `null`. **Cambiando un limite, va cambiato sia in `LIMITS` sia in `scada.json`.**
+Il gateway gestisce anche la logica di comando: tiene lo stato dei 4 interruttori comuni (`system/switch/<n>/cmd` con `{"power": "on"|"off"}`, `system/switch/<n>/state` retained, n da 1 a 4; all'avvio tutti OFF); ogni modulo ha un campo `source` (`"manual"` oppure un intero da 1 a 4, usato in `devices/<ch>/state` e `devices/<ch>/cmd`, es. `{"source": 3}` o `{"source": "manual", "power": "on"}`); ignora i comandi di accensione dei moduli non in Manual e li riallinea al loro interruttore (al massimo ogni 2 secondi); scarta i valori fuori da `LIMITS` (corrente ±10000 A, temperatura 0–150 °C, codice errore 0–255) pubblicandoli come `null`. **Cambiando un limite, va cambiato sia in `LIMITS` sia in `scada.json`.**
 
-Oggi il bus è `EmulatorBus`, che simula i 12 moduli (all'avvio in sync e spenti): corrente vicina al valore nominale (prima corrente della curva caricata, altrimenti 90 + 4 × canale A), temperatura che tende a 25 + 0,4 × I °C, codice errore 5 sopra 70 °C e 20 sopra 85 °C (LED rosso, perché > 15). Per collegare i dispositivi reali:
+Oggi il bus è `EmulatorBus`, che simula i 12 moduli (all'avvio collegati a ON/OFF 1 e spenti): corrente vicina al valore nominale (prima corrente della curva caricata, altrimenti 90 + 4 × canale A), temperatura che tende a 25 + 0,4 × I °C, codice errore 5 sopra 70 °C e 20 sopra 85 °C (LED rosso, perché > 15). Per collegare i dispositivi reali:
 
 1. In `vue/canbus/bus.py` scrivere una classe con gli stessi metodi di `EmulatorBus`: `start(on_state)`, `send_command(ch, cmd)`, `send_parameters(...)`, `close()`, usando la libreria python-can; in fondo al file c'è un esempio. La codifica dei messaggi CAN (ID, formato dei dati) dipende dal protocollo dei dispositivi e va definita.
 2. Registrarla nel dizionario `BUSES` con un nome, es. `"socketcan"`.

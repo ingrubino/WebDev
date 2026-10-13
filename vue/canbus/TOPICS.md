@@ -15,7 +15,7 @@ Broker: Mosquitto (container `mqtt`).
 
 ```json
 {"channel": 1, "current": 145, "temperature": 80, "error": 20,
- "control": "sync", "power": "on", "ts": 1760000000.0}
+ "source": 1, "power": "on", "ts": 1760000000.0}
 ```
 
 | campo         | tipo                  | significato                                                    |
@@ -23,7 +23,7 @@ Broker: Mosquitto (container `mqtt`).
 | `current`     | numero, A             | corrente misurata, da -10000 a 10000 (può essere negativa)     |
 | `temperature` | numero, °C            | temperatura, da 0 a 150                                        |
 | `error`       | intero                | codice errore, da 0 a 255 (0 = nessun errore)                  |
-| `control`     | `sync`/`manual`       | chi comanda l'ON/OFF: il pulsante sync unico o il modulo       |
+| `source`      | `"manual"` o 1..4     | chi comanda l'ON/OFF: il modulo (Manual) o l'interruttore ON/OFF 1..4 |
 | `power`       | `on`/`off`            | uscita accesa o spenta                                         |
 | `ts`          | secondi Unix          | istante della misura                                           |
 
@@ -32,7 +32,7 @@ la pagina mostra `---`. Limiti: `LIMITS` in `gateway.py` e `limits` in `vue/conf
 (vanno tenuti uguali). Il LED del modulo è rosso se `error` > 15 (`alarmAbove` in `scada.json`),
 altrimenti verde. Nell'emulatore: 5 = temperatura sopra 70 °C, 20 = sopra 85 °C.
 
-Nota: `control` (sync/manual) non è la modalità AC/DC della configurazione canali,
+Nota: `source` non è la modalità AC/DC della configurazione canali,
 che nei messaggi si chiama `acdc`.
 
 ## Comandi a un modulo (interfaccia → gateway)
@@ -40,28 +40,30 @@ che nei messaggi si chiama `acdc`.
 `devices/<ch>/cmd`, QoS 1. Uno o più campi:
 
 ```json
-{"control": "manual", "power": "on"}
-{"control": "sync"}
+{"source": "manual", "power": "on"}
+{"source": 3}
 {"power": "off"}
 ```
 
-- `manual`: il modulo usa il proprio ON/OFF; passando a manual la pagina invia anche il valore
-  attuale del pulsante ON/OFF del modulo.
-- `sync`: il modulo segue il pulsante sync unico; il gateway gli invia subito quel valore e ignora
-  i comandi `power` del singolo modulo finché resta in sync.
+- `"manual"`: il modulo usa il proprio ON/OFF; passando a Manual la pagina invia anche il valore
+  attuale dell'ON/OFF del modulo, così l'uscita non cambia.
+- `1`..`4` (numero): il modulo segue l'interruttore globale ON/OFF 1..4; il gateway gli invia
+  subito il suo valore e ignora i comandi `power` del singolo modulo finché resta collegato.
 
 Il gateway li inoltra al dispositivo; il nuovo stato arriva con il messaggio `state` successivo
 (l'interfaccia mostra sempre lo stato reale, non quello richiesto).
 
-## Pulsante sync unico
+## Interruttori globali ON/OFF 1..4
 
-`system/sync/cmd` (interfaccia → gateway), QoS 1: `{"power": "on"}` oppure `{"power": "off"}`.
-Il gateway lo invia a tutti i moduli in modalità sync e pubblica il nuovo stato su
+`system/switch/<n>/cmd` (interfaccia → gateway), `<n>` da 1 a 4, QoS 1:
+`{"power": "on"}` oppure `{"power": "off"}`. Il gateway lo invia a tutti i moduli con
+`source` = `<n>` e pubblica il nuovo stato su
 
-`system/sync/state` (gateway → interfaccia), retained: `{"power": "off"}`.
+`system/switch/<n>/state` (gateway → interfaccia), retained: `{"power": "off"}`.
 
-All'avvio del gateway il pulsante sync vale `SYNC_POWER` (default `off`). Se un modulo in sync
-riporta un ON/OFF diverso, il gateway gli ripete il comando (al massimo ogni 2 secondi).
+All'avvio del gateway i 4 interruttori sono OFF; nell'emulatore tutti i moduli partono collegati
+a ON/OFF 1. Se un modulo collegato a un interruttore riporta un ON/OFF diverso, il gateway gli
+ripete il comando (al massimo ogni 2 secondi).
 
 ## Set devices (caricamento parametri)
 

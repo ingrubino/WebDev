@@ -4,7 +4,7 @@ Ogni "bus" ha la stessa interfaccia, così gateway.py non cambia passando
 dall'emulatore al bus CAN reale (variabile d'ambiente DEVICE_BUS):
 
   start(on_state)          avvia; on_state(channel, state) va chiamata a ogni misura ricevuta
-  send_command(ch, cmd)    comando a un modulo: {"control": "sync"|"manual"} e/o {"power": "on"|"off"}
+  send_command(ch, cmd)    comando a un modulo: {"source": "manual"|1..4} e/o {"power": "on"|"off"}
   send_parameters(...)     caricamento parametri (Set devices)
   close()
 
@@ -25,7 +25,7 @@ class EmulatorBus:
     - spento: corrente 0, la temperatura scende verso 25 °C
     - codice errore: 0 = nessun errore; 5 sopra 70 °C (avviso, LED verde);
       20 sopra 85 °C (sovratemperatura, LED rosso), che rientra sotto 80 °C
-    - all'avvio tutti i moduli sono in sync e spenti: il gateway li allinea al pulsante sync
+    - all'avvio tutti i moduli seguono l'interruttore ON/OFF 1 e sono spenti
     """
 
     name = "emulator"
@@ -39,7 +39,7 @@ class EmulatorBus:
         self.stop_event = threading.Event()
         self.channels = {
             ch: {"current": 0.0, "temperature": 25.0, "error": 0,
-                 "control": "sync", "power": "off", "nominal": 90.0 + 4 * ch}
+                 "source": 1, "power": "off", "nominal": 90.0 + 4 * ch}
             for ch in range(1, channels + 1)
         }
 
@@ -68,7 +68,7 @@ class EmulatorBus:
         else:
             s["error"] = self.WARN_CODE if t > self.WARN_TEMP else 0
         return {"channel": None, "current": round(s["current"]), "temperature": round(t),
-                "error": s["error"], "control": s["control"], "power": s["power"],
+                "error": s["error"], "source": s["source"], "power": s["power"],
                 "ts": round(time.time(), 3)}
 
     def send_command(self, channel, command):
@@ -76,7 +76,7 @@ class EmulatorBus:
             s = self.channels.get(channel)
             if s is None:
                 return False
-            s.update({k: v for k, v in command.items() if k in ("control", "power")})
+            s.update({k: v for k, v in command.items() if k in ("source", "power")})
         self.log(f"CH {channel:02d}  command {command}")
         return True
 

@@ -1,9 +1,9 @@
 <script setup>
-// Interruttore a due posizioni con etichetta a sinistra e a destra (es. sync | manual).
+// Interruttore a due posizioni con etichetta a sinistra e a destra (es. ON | OFF).
 // value = valore attuale (dal dispositivo); click -> emette il valore dell'altra posizione.
 const props = defineProps({
   name: { type: String, required: true },      // per l'accessibilità, es. "Control"
-  left: { type: Object, required: true },      // { value: 'sync', label: 'sync' }
+  left: { type: Object, required: true },      // { value: 'on', label: 'ON' }
   right: { type: Object, required: true },
   value: { type: String, default: null },      // null = sconosciuto
   disabled: Boolean,

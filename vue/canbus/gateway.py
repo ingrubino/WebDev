@@ -2,8 +2,8 @@
 
 - pubblica lo stato di ogni modulo su devices/<ch>/state (pagina SCADA)
 - inoltra al bus i comandi ricevuti su devices/<ch>/cmd
-- pulsante sync unico: i moduli in modalità sync seguono system/sync/cmd (ON/OFF per tutti),
-  quelli in manual il proprio pulsante ON/OFF
+- 4 interruttori globali ON/OFF 1..4 (system/switch/<n>/cmd): ogni modulo sceglie la sorgente
+  del proprio ON/OFF, "manual" (il suo pulsante) oppure uno dei 4 interruttori
 - scarta i valori fuori dai limiti (LIMITS) prima di pubblicarli
 - su system/set_devices/start esegue Set devices (carica i parametri dal database)
   e risponde su system/set_devices/result
@@ -14,7 +14,6 @@ Variabili d'ambiente:
   DEVICE_BUS                emulator (default); in futuro il bus CAN reale, vedi bus.py
   CHANNELS                  numero di canali (default 12)
   EMULATOR_INTERVAL         secondi tra due misure dell'emulatore (default 1)
-  SYNC_POWER                stato del pulsante sync all'avvio: off (default) oppure on
   DB_HOST, DB_NAME, ...     database, per Set devices (vedi set_devices.py)
 """
 import json
@@ -31,13 +30,13 @@ from bus import BUSES
 STATUS_TOPIC = "system/gateway/status"
 START_TOPIC = "system/set_devices/start"
 RESULT_TOPIC = "system/set_devices/result"
-SYNC_CMD_TOPIC = "system/sync/cmd"
-SYNC_STATE_TOPIC = "system/sync/state"
-ALLOWED = {"control": ("sync", "manual"), "power": ("on", "off")}
+SWITCHES = (1, 2, 3, 4)  # interruttori globali ON/OFF 1..4: system/switch/<n>/cmd e /state
+SOURCES = ("manual",) + SWITCHES  # sorgente dell'ON/OFF di un modulo
+ALLOWED = {"source": SOURCES, "power": ("on", "off")}
 # Limiti dei valori misurati: uguali a "limits" in vue/config/scada.json (letto dalla pagina).
 # Un valore fuori limite viene pubblicato come null (la pagina mostra ---).
 LIMITS = {"current": (-10000, 10000), "temperature": (0, 150), "error": (0, 255)}
-RESYNC_SECONDS = 2  # un modulo in sync non allineato riceve di nuovo il comando dopo questo tempo
+RESYNC_SECONDS = 2  # un modulo non allineato al suo interruttore riceve di nuovo il comando dopo questo tempo
 
 
 def sanitize(state):
@@ -64,9 +63,9 @@ class Gateway:
         self.bus = BUSES[bus_name](channels=self.channels,
                                    interval=float(os.environ.get("EMULATOR_INTERVAL", "1")), log=log)
         self.set_lock = threading.Lock()  # un solo Set devices alla volta (niente conflitti sul bus)
-        self.sync_power = "on" if os.environ.get("SYNC_POWER", "off") == "on" else "off"
-        self.control = {}   # canale -> "sync" | "manual", dall'ultimo stato ricevuto
-        self.resync_at = {}  # canale -> ultimo comando di allineamento al pulsante sync
+        self.switch_power = {n: "off" for n in SWITCHES}  # tutti OFF all'avvio
+        self.source = {}     # canale -> "manual" | 1..4, dall'ultimo stato ricevuto
+        self.resync_at = {}  # canale -> ultimo comando di allineamento all'interruttore
 
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="canbus-gateway")
         self.client.will_set(STATUS_TOPIC, json.dumps({"status": "offline"}), qos=1, retain=True)
@@ -93,24 +92,27 @@ class Gateway:
             log(f"MQTT connection refused: {reason_code}")
             return
         log("Connected to MQTT broker")
-        client.subscribe([("devices/+/cmd", 1), (START_TOPIC, 1), (SYNC_CMD_TOPIC, 1)])
+        client.subscribe([("devices/+/cmd", 1), (START_TOPIC, 1), ("system/switch/+/cmd", 1)])
         client.publish(STATUS_TOPIC, json.dumps({"status": "online", "bus": self.bus.name}), qos=1, retain=True)
-        self.publish_sync()
+        for n in SWITCHES:
+            self.publish_switch(n)
 
-    def publish_sync(self):
-        self.client.publish(SYNC_STATE_TOPIC, json.dumps({"power": self.sync_power}), qos=1, retain=True)
+    def publish_switch(self, n):
+        self.client.publish(f"system/switch/{n}/state", json.dumps({"power": self.switch_power[n]}),
+                            qos=1, retain=True)
 
     def publish_state(self, channel, state):
         state["channel"] = channel
         sanitize(state)
         self.client.publish(f"devices/{channel}/state", json.dumps(state), qos=0)
-        self.control[channel] = state.get("control")
-        # un modulo in sync deve avere lo stato del pulsante sync: se non lo ha, lo si allinea
-        if state.get("control") == "sync" and state.get("power") != self.sync_power:
+        source = state.get("source")
+        self.source[channel] = source
+        # un modulo collegato a un interruttore deve averne lo stato: se non lo ha, lo si allinea
+        if source in SWITCHES and state.get("power") != self.switch_power[source]:
             now = time.monotonic()
             if now - self.resync_at.get(channel, 0) >= RESYNC_SECONDS:
                 self.resync_at[channel] = now
-                self.bus.send_command(channel, {"power": self.sync_power})
+                self.bus.send_command(channel, {"power": self.switch_power[source]})
 
     def on_message(self, client, userdata, msg):
         try:
@@ -122,11 +124,10 @@ class Gateway:
             # in un thread a parte: il database non deve bloccare la ricezione MQTT
             threading.Thread(target=self.set_devices, args=(body.get("id"),), daemon=True).start()
             return
-        if msg.topic == SYNC_CMD_TOPIC:
-            self.sync(body)
-            return
         parts = msg.topic.split("/")
-        if len(parts) == 3 and parts[0] == "devices" and parts[2] == "cmd":
+        if len(parts) == 4 and parts[:2] == ["system", "switch"] and parts[3] == "cmd":
+            self.switch(parts[2], body)
+        elif len(parts) == 3 and parts[0] == "devices" and parts[2] == "cmd":
             self.command(parts[1], body)
 
     def command(self, channel, body):
@@ -134,27 +135,29 @@ class Gateway:
             log(f"Ignored command for channel {channel!r}")
             return
         ch = int(channel)
-        cmd = {k: v for k, v in body.items() if v in ALLOWED.get(k, ())}
-        control = cmd.get("control", self.control.get(ch))
-        if control == "sync":
-            # in sync l'ON/OFF del modulo non conta: vale quello del pulsante sync
-            if "power" in cmd and "control" not in cmd:
-                log(f"CH {ch:02d}  power command ignored: module is in sync")
-            cmd["power"] = self.sync_power
+        # True == 1 in Python: un booleano non è un interruttore valido
+        cmd = {k: v for k, v in body.items() if not isinstance(v, bool) and v in ALLOWED.get(k, ())}
+        source = cmd.get("source", self.source.get(ch))
+        if source in SWITCHES:
+            # collegato a un interruttore: l'ON/OFF del modulo non conta, vale quello dell'interruttore
+            if "power" in cmd and "source" not in cmd:
+                log(f"CH {ch:02d}  power command ignored: module follows ON/OFF {source}")
+            cmd["power"] = self.switch_power[source]
         if cmd:
-            self.control[ch] = control
+            self.source[ch] = source
             self.bus.send_command(ch, cmd)
 
-    def sync(self, body):
+    def switch(self, n, body):
         power = body.get("power") if isinstance(body, dict) else None
-        if power not in ALLOWED["power"]:
-            log(f"Ignored sync command {body!r}")
+        if not n.isdigit() or int(n) not in SWITCHES or power not in ALLOWED["power"]:
+            log(f"Ignored command for switch {n!r}: {body!r}")
             return
-        self.sync_power = power
-        log(f"SYNC  power={power}")
-        self.publish_sync()
-        for ch, control in self.control.items():
-            if control == "sync":
+        n = int(n)
+        self.switch_power[n] = power
+        log(f"ON/OFF {n}  power={power}")
+        self.publish_switch(n)
+        for ch, source in self.source.items():
+            if source == n:
                 self.bus.send_command(ch, {"power": power})
 
     def set_devices(self, request_id):

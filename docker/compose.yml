@@ -68,7 +68,6 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD nel file .env}
       MQTT_HOST: mqtt
       DEVICE_BUS: ${DEVICE_BUS:-emulator}
-      SYNC_POWER: ${SYNC_POWER:-off}       # pulsante Sync della pagina SCADA all'avvio del gateway
     depends_on:
       db:
         condition: service_healthy

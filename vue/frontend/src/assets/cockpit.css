@@ -196,6 +196,24 @@ dialog.confirm p { margin-top: 0; }
 .slide-switch button:hover:not(:disabled) { background: #111; border-color: var(--warn); box-shadow: none; }
 .led.green { background: #1aff4a; box-shadow: 0 0 10px #1aff4a; }
 .led.red { background: #ff1a1a; box-shadow: 0 0 10px #ff1a1a; }
-.sync-control { display: flex; align-items: center; gap: 12px; margin-left: auto; padding: 8px 14px; background: #d9d9d9; color: #111; border-radius: 10px; border: 2px solid var(--accent-strong); font-family: 'Segoe UI', sans-serif; font-weight: 700; }
-.sync-control .slide-switch { grid-template-columns: auto auto auto; }
-.sync-control .hint { color: #333; font-weight: 400; }
+/* 4 interruttori globali ON/OFF 1..4 in una riga sotto il titolo (2 per riga su schermi stretti) */
+.switch-bank { flex-basis: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .switch-bank { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .switch-bank { grid-template-columns: minmax(0, 1fr); } }
+.switch-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 14px; background: #d9d9d9; color: #111; border-radius: 10px; border: 2px solid var(--accent-strong); font-family: 'Segoe UI', sans-serif; font-weight: 700; }
+.switch-control .slide-switch { grid-template-columns: auto auto auto; }
+.switch-control .hint { color: #333; font-weight: 400; margin-left: auto; }
+.scada-module .source { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.scada-module .source select { flex: 1; min-width: 0; margin: 0; padding: 4px 8px; font-family: inherit; background: #fff; color: #111; border: 1px solid #111; font-weight: 600; }
+.scada-module .source select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Uscita accesa (linea alimentata): spia LIVE rossa e bordo rosso del riquadro, ben visibili anche da lontano */
+.live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em; color: #666; white-space: nowrap; }
+.live-badge .lamp { width: 12px; height: 12px; border-radius: 50%; background: #888; border: 1px solid #222; }
+.live-badge.off { color: #333; }
+.live-badge.off .lamp { background: #444; }
+.live-badge.on { color: #fff; background: #d00000; border-radius: 4px; padding: 1px 7px 1px 5px; }
+.live-badge.on .lamp { background: #ff3b3b; border-color: #fff; box-shadow: 0 0 8px #ff3b3b; animation: live-blink 1s steps(2, start) infinite; }
+@keyframes live-blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .live-badge.on .lamp { animation: none; } }
+.scada-module.live, .switch-control.live { border-color: #ff1a1a; box-shadow: 0 0 0 2px #ff1a1a, 0 0 18px rgba(255, 26, 26, 0.7); }

@@ -5,6 +5,20 @@ import channelRules from '@config/channel-rules.json'
 
 export const scadaConfig = defaultConfig
 
+/** Interruttori globali ON/OFF 1..4 (topic system/switch/<n>/...). */
+export const SWITCHES = [1, 2, 3, 4]
+
+/** Sorgente dell'ON/OFF di un modulo: 'manual' (il suo pulsante) o il numero di un interruttore. */
+export function parseSource(v) {
+  if (v === 'manual') return 'manual'
+  return SWITCHES.includes(v) ? v : null
+}
+
+/** Testo della sorgente nel selettore del modulo: Manual oppure ON/OFF n. */
+export function sourceLabel(source) {
+  return source === 'manual' ? 'Manual' : `ON/OFF ${source}`
+}
+
 /** Colonne della griglia: intero tra 1 e il numero di moduli (valore non valido -> 3). */
 export function gridColumns(config = defaultConfig, modules = channelRules.channels) {
   const n = Math.round(Number(config.columns))
@@ -38,7 +52,7 @@ export function parseState(payload, config = defaultConfig) {
     current: inRange('current', s.current, config),
     temperature: inRange('temperature', s.temperature, config),
     error: inRange('error', s.error, config),
-    control: s.control === 'manual' ? 'manual' : s.control === 'sync' ? 'sync' : null,
+    source: parseSource(s.source),
     power: s.power === 'on' ? 'on' : s.power === 'off' ? 'off' : null,
   }
 }
@@ -47,6 +61,11 @@ export function parseState(payload, config = defaultConfig) {
 export function ledColor(error, config = defaultConfig) {
   if (error === null || error === undefined) return null
   return error > (config.alarmAbove ?? 15) ? 'red' : 'green'
+}
+
+/** Spia LIVE: 'on' se l'uscita è accesa (stato riportato dal dispositivo), 'off' se spenta, null senza dati. */
+export function liveState(state) {
+  return state?.power === 'on' || state?.power === 'off' ? state.power : null
 }
 
 /** Testo di un visualizzatore: numero intero, oppure --- se manca. */

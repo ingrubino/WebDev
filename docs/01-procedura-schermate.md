@@ -118,7 +118,7 @@ La tabella "dati inseriti" diventa direttamente le regole di validazione del Pas
 - **Scopo:** vedere in tempo reale lo stato dei 12 moduli e comandarli.
 - **URL:** `/scada` (voce "SCADA" nella barra in alto) · **Dati:** MQTT, non l'API REST (topic in [vue/canbus/TOPICS.md](../vue/canbus/TOPICS.md)); intestazioni dei moduli da `GET /api/channels`.
 - **Disposizione:** 12 moduli in una griglia; il numero di colonne si imposta in `vue/config/scada.json` (`columns: 3` → 4 righe; 4 → 3 righe; 6 → 2 righe). Su schermi stretti diventano 2 colonne (sotto 900 px) e 1 colonna (sotto 560 px).
-- **Ogni modulo:** intestazione "CH n" con dispositivo e AC/DC presi da `channel_config`; display corrente (A), temperatura (°C) ed E (codice errore); LED; interruttori sync/manual e ON/OFF.
+- **Ogni modulo:** intestazione "CH n" con dispositivo e AC/DC presi da `channel_config`; display corrente (A), temperatura (°C) ed E (codice errore); LED; selettore **Source** (Manual, ON/OFF 1, ON/OFF 2, ON/OFF 3, ON/OFF 4) e interruttore ON/OFF.
 - **Valori ammessi** (`limits` in `vue/config/scada.json`, uguali a `LIMITS` in `vue/canbus/gateway.py`):
 
   | grandezza | minimo | massimo | note |
@@ -128,15 +128,22 @@ La tabella "dati inseriti" diventa direttamente le regole di validazione del Pas
   | codice errore | 0 | 255 | intero; 0 = nessun errore |
 
   Un valore fuori limite viene scartato dal gateway (pubblicato come `null` e scritto nel log) e il display mostra `---`.
-- **LED:** verde se il codice errore è ≤ 15, rosso se è > 15 (soglia `alarmAbove` in `scada.json`), grigio se mancano dati.
-- **Logica sync/manual:**
-  - in cima alla pagina c'è un interruttore unico **Sync ON/OFF** con il contatore "N module(s) in sync";
-  - i moduli in **sync** seguono quell'interruttore e il loro ON/OFF è bloccato; il gateway ignora i comandi di accensione del singolo modulo e riallinea quelli che divergono (al massimo ogni 2 secondi);
-  - i moduli in **manual** usano il proprio interruttore ON/OFF; passando a manual la pagina invia `{"control": "manual", "power": <valore attuale>}`, così il modulo non cambia stato;
-  - all'avvio del gateway il Sync è OFF (variabile `SYNC_POWER`, predefinito `off`) e i moduli emulati partono in sync e spenti.
+- **LED di errore:** verde se il codice errore è ≤ 15, rosso se è > 15 (soglia `alarmAbove` in `scada.json`), grigio se mancano dati.
+- **Spia LIVE (sicurezza):** nell'intestazione di ogni modulo una spia indica se l'uscita alimenta la linea, in base allo stato `power` **riportato dal dispositivo** (non al comando inviato):
+  - "LIVE" rossa con lampadina lampeggiante e bordo del riquadro rosso con alone quando l'uscita è ON;
+  - "OFF" grigio scuro quando è spenta;
+  - "---" senza dati.
+
+  È distinta dal LED di errore. Anche gli interruttori comuni ON/OFF 1…4 accesi hanno il bordo rosso e l'etichetta LIVE accanto a "N module(s)". Se nel sistema è attivo "riduci movimento", la lampadina non lampeggia.
+- **Logica di comando (Source):**
+  - in cima alla pagina ci sono 4 interruttori comuni **ON/OFF 1 … ON/OFF 4**, ciascuno con il contatore "N module(s)" dei moduli collegati;
+  - nel modulo il selettore Source sceglie da dove viene l'uscita: **Manual** usa l'interruttore ON/OFF del modulo stesso; **ON/OFF n** collega il modulo all'interruttore comune n, e l'ON/OFF del modulo resta bloccato e mostra lo stato;
+  - il gateway ignora i comandi di accensione dei moduli non in Manual e riallinea quelli che divergono dal loro interruttore (al massimo ogni 2 secondi);
+  - passando a Manual la pagina invia `{"source": "manual", "power": <valore attuale>}`, così il modulo non cambia stato;
+  - all'avvio del gateway i 4 interruttori sono OFF e i moduli emulati sono collegati a ON/OFF 1.
 - **Dati mostrati:** `devices/<ch>/state`, circa ogni secondo. Gli interruttori mostrano lo stato **riportato dal dispositivo**, non quello richiesto: un comando (`devices/<ch>/cmd`) si vede solo quando arriva lo stato successivo.
 - **Stati:** in cima alla pagina "Broker connected/disconnected" e "Gateway online (emulator)/offline". Se il broker o il gateway non rispondono, o un modulo non manda dati da `staleAfterSeconds` secondi (5), il modulo mostra `---` e gli interruttori sono disattivati.
-- **Collaudo:** con l'emulatore i 12 moduli si aggiornano; con Sync ON tutti i moduli in sync si accendono insieme e il loro ON/OFF resta bloccato; un modulo in manual si accende e spegne da solo, la corrente va a 0 e la temperatura scende; sopra 70 °C l'emulatore dà errore 5 (LED verde), sopra 85 °C errore 20 (LED rosso); fermando il gateway (`docker compose stop canbus`) la pagina mostra "Gateway offline" e `---`.
+- **Collaudo:** con l'emulatore i 12 moduli si aggiornano; accendendo ON/OFF 1 si accendono insieme tutti i moduli collegati a ON/OFF 1 e il loro ON/OFF resta bloccato; spostando un modulo su ON/OFF 2 segue quell'interruttore; un modulo in Manual si accende e spegne da solo, la corrente va a 0 e la temperatura scende; sopra 70 °C l'emulatore dà errore 5 (LED verde), sopra 85 °C errore 20 (LED rosso); ogni modulo acceso mostra LIVE e il bordo rosso, e la spia torna OFF solo quando il dispositivo riporta l'uscita spenta; fermando il gateway (`docker compose stop canbus`) la pagina mostra "Gateway offline" e `---`.
 
 ---
 
@@ -189,8 +196,8 @@ Riutilizzare prima di creare:
 |---|---|
 | `components/FormField.vue` | qualsiasi campo di input con il suo messaggio d'errore |
 | `components/CartesianChart.vue` | qualsiasi grafico X/Y (curve, andamento delle misure nel tempo) |
-| `components/SlideSwitch.vue` | interruttore a due posizioni (es. sync/manual, ON/OFF) che mostra lo stato reale; `null` = sconosciuto |
-| `components/ScadaModule.vue` | modulo completo di un canale (display, LED, interruttori), riusabile in altre pagine di monitoraggio |
+| `components/SlideSwitch.vue` | interruttore a due posizioni (es. ON/OFF) che mostra lo stato reale; `null` = sconosciuto |
+| `components/ScadaModule.vue` | modulo completo di un canale (display, LED di errore, spia LIVE, interruttori), riusabile in altre pagine di monitoraggio |
 | `src/mqtt.js` | collegamento al broker MQTT dal browser (stato della connessione, iscrizione ai topic, invio comandi) |
 | `components/FilePicker.vue` | scelta di un file: pulsante "Choose file" e testo "No file selected" o nome del file; proprietà `accept` e `label`, evento `select` |
 | `components/ConfirmDialog.vue` + `askConfirm()` da `src/confirm.js` | richiesta di conferma al posto di `window.confirm()`: `await askConfirm('Remove device?', { okLabel: 'Remove', danger: true })` restituisce `true` o `false`; pulsanti ad es. Leave/Cancel, Remove/Cancel, Overwrite/Cancel |

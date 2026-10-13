@@ -3,13 +3,13 @@
 // nessuna pagina la usa più. Topic e payload: vue/canbus/TOPICS.md
 import mqtt from 'mqtt'
 import { reactive } from 'vue'
-import { parseState, topicChannel } from './scada'
+import { parseState, SWITCHES, topicChannel } from './scada'
 
 export const live = reactive({
   connected: false,
   gateway: null, // { status: 'online' | 'offline', bus } dal topic retained system/gateway/status
   states: {},    // canale -> { ...stato, receivedAt }
-  syncPower: null, // 'on' | 'off' dal topic retained system/sync/state (pulsante sync unico)
+  switches: {},  // n (1..4) -> 'on' | 'off' dai topic retained system/switch/<n>/state
 })
 
 let client = null
@@ -30,7 +30,10 @@ function onMessage(topic, payload) {
   let body
   try { body = JSON.parse(payload.toString()) } catch { return }
   if (topic === 'system/gateway/status') live.gateway = body
-  if (topic === 'system/sync/state') live.syncPower = ['on', 'off'].includes(body.power) ? body.power : null
+  const sw = /^system\/switch\/(\d+)\/state$/.exec(topic)
+  if (sw && SWITCHES.includes(Number(sw[1]))) {
+    live.switches[sw[1]] = ['on', 'off'].includes(body.power) ? body.power : null
+  }
   if (topic === 'system/set_devices/result' && pending.has(body.id)) {
     const { resolve, timer } = pending.get(body.id)
     clearTimeout(timer)
@@ -50,7 +53,7 @@ export function useLive() {
     })
     client.on('connect', () => {
       live.connected = true
-      client.subscribe(['devices/+/state', 'system/gateway/status', 'system/sync/state', 'system/set_devices/result'], { qos: 1 })
+      client.subscribe(['devices/+/state', 'system/gateway/status', 'system/switch/+/state', 'system/set_devices/result'], { qos: 1 })
     })
     client.on('close', () => { live.connected = false })
     client.on('message', onMessage)
@@ -62,21 +65,21 @@ export function useLive() {
     if (--users > 0) return
     client.end(true)
     client = null
-    Object.assign(live, { connected: false, gateway: null, states: {}, syncPower: null })
+    Object.assign(live, { connected: false, gateway: null, states: {}, switches: {} })
   }
 }
 
-/** Comando a un modulo: { control: 'sync'|'manual' } oppure { power: 'on'|'off' }. */
+/** Comando a un modulo: { source: 'manual'|1..4 } e/o { power: 'on'|'off' }. */
 export function sendCommand(channel, command) {
   if (!client || !live.connected) return false
   client.publish(`devices/${channel}/cmd`, JSON.stringify(command), { qos: 1 })
   return true
 }
 
-/** Pulsante sync unico: ON/OFF per tutti i moduli in modalità sync. */
-export function sendSyncPower(power) {
+/** Interruttore globale ON/OFF n (1..4): comanda tutti i moduli collegati a quell'interruttore. */
+export function sendSwitchPower(n, power) {
   if (!client || !live.connected) return false
-  client.publish('system/sync/cmd', JSON.stringify({ power }), { qos: 1 })
+  client.publish(`system/switch/${n}/cmd`, JSON.stringify({ power }), { qos: 1 })
   return true
 }
 

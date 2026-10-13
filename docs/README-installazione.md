@@ -151,7 +151,6 @@ Tutte le impostazioni stanno nel file `docker/.env` (creato da `docker/.env.exam
 | `DB_PASSWORD` | *(obbligatoria)* | Password dell'utente dell'API |
 | `DB_ROOT_PASSWORD` | *(obbligatoria)* | Password di amministrazione del database |
 | `MQTT_PORT` | `1884` | Solo in modalità sviluppo (`compose.dev.yml`): porta su cui il broker MQTT è raggiungibile dalla macchina stessa (`127.0.0.1`), es. `mosquitto_sub -h localhost -p 1884 -t '#' -v`. Dentro Docker il broker usa sempre la 1883. Lo stack normale non la pubblica |
-| `SYNC_POWER` | `off` | Stato dell'interruttore Sync della pagina SCADA all'avvio del gateway (`on` oppure `off`) |
 | `DEVICE_BUS` | `emulator` | Collegamento ai dispositivi del gateway: `emulator` simula i 12 moduli |
 | `IMAGE_PREFIX` | `webdev` | Prefisso delle immagini (es. `ghcr.io/utente/webdev` per pubblicarle) |
 | `TAG` | `latest` | Versione delle immagini |
@@ -180,7 +179,7 @@ Non lasciare phpMyAdmin attivo sul Raspberry se non serve.
 | Dettaglio | `/devices/<nome>` | modifica, rinomina, grafico della curva, eliminazione con conferma |
 | Import CSV | `/import` | importazione di più dispositivi con anteprima; vengono salvati solo quelli validi |
 | Configurazione canali | `/channels` | 12 canali: per ognuno un dispositivo dell'elenco e la modalità AC/DC; salvati nella tabella `channel_config`. Il pulsante **Set devices** invia a ogni dispositivo la sua curva e la modalità |
-| SCADA | `/scada` | 12 moduli in tempo reale: corrente (A, da -10000 a 10000), temperatura (0–150 °C), codice errore (0–255), LED verde/rosso (rosso se errore > 15), interruttori sync/manual e ON/OFF. In cima, l'interruttore unico **Sync ON/OFF** comanda tutti i moduli in sync; quelli in manual usano il proprio ON/OFF. Colonne, limiti e soglia del LED in `vue/config/scada.json` |
+| SCADA | `/scada` | 12 moduli in tempo reale: corrente (A, da -10000 a 10000), temperatura (0–150 °C), codice errore (0–255), LED verde/rosso (rosso se errore > 15), selettore Source e interruttore ON/OFF. In cima, 4 interruttori comuni **ON/OFF 1 … ON/OFF 4**: ogni modulo segue quello scelto nel suo selettore Source, oppure, in Manual, il proprio ON/OFF. Colonne, limiti e soglia del LED in `vue/config/scada.json` |
 
 Per ora i dispositivi sono **simulati** da un emulatore nel gateway `canbus`: la pagina SCADA mostra dati realistici e "Set devices" stampa i parametri invece di inviarli sul bus CAN. Si vedono nel pannello "Set devices output" della pagina oppure nel terminale:
 

@@ -1,10 +1,13 @@
 <script setup>
 // Un modulo della pagina SCADA (un canale): corrente, temperatura, codice errore con LED
-// (verde/rosso secondo alarmAbove), interruttori sync/manual e ON/OFF.
-// In sync l'ON/OFF del modulo è bloccato: comanda il pulsante sync unico della pagina.
+// (verde/rosso secondo alarmAbove), selettore della sorgente e interruttore ON/OFF.
+// Sorgente Manual: l'uscita segue l'ON/OFF del modulo; ON/OFF 1..4: segue quell'interruttore
+// globale della pagina e l'ON/OFF del modulo è bloccato.
+// Uscita accesa (power "on" riportato dal dispositivo = linea alimentata, possibile pericolo):
+// spia LIVE rossa nell'intestazione e bordo rosso del riquadro.
 import { computed } from 'vue'
 import SlideSwitch from './SlideSwitch.vue'
-import { display, ledColor } from '@/scada'
+import { display, ledColor, liveState, SWITCHES, sourceLabel } from '@/scada'
 
 const props = defineProps({
   channel: { type: Number, required: true },
@@ -17,22 +20,28 @@ const emit = defineEmits(['command'])
 
 const s = computed(() => props.state ?? {})
 const led = computed(() => ledColor(s.value.error))
-const inSync = computed(() => s.value.control === 'sync')
-const CONTROL = { left: { value: 'sync', label: 'sync' }, right: { value: 'manual', label: 'manual' } }
+const live = computed(() => liveState(props.state))
+const linked = computed(() => SWITCHES.includes(s.value.source))
+const SOURCES = ['manual', ...SWITCHES]
 const POWER = { left: { value: 'on', label: 'ON' }, right: { value: 'off', label: 'OFF' } }
 
-// passando a manual si invia anche il valore attuale del pulsante ON/OFF del modulo
-function setControl(control) {
-  emit('command', control === 'manual' ? { control, power: s.value.power ?? 'off' } : { control })
+// passando a Manual si invia anche il valore attuale dell'ON/OFF, così l'uscita non cambia
+function setSource(event) {
+  const v = event.target.value
+  const source = v === 'manual' ? 'manual' : Number(v)
+  emit('command', source === 'manual' ? { source, power: s.value.power ?? 'off' } : { source })
 }
 </script>
 
 <template>
-  <article class="scada-module" :class="{ 'no-data': !state }" :aria-label="`Channel ${channel}`">
+  <article class="scada-module" :class="{ 'no-data': !state, live: live === 'on' }" :aria-label="`Channel ${channel}`">
     <header>
       <strong>CH {{ channel }}</strong>
       <span class="device" :title="device">{{ device || 'not used' }}</span>
       <span v-if="acdc" class="tag">{{ acdc }}</span>
+      <span class="live-badge" :class="live" role="status"
+            :aria-label="`Output, channel ${channel}: ${live === 'on' ? 'live' : live === 'off' ? 'off' : 'unknown'}`">
+        <span class="lamp"></span>{{ live === 'on' ? 'LIVE' : live === 'off' ? 'OFF' : '---' }}</span>
     </header>
 
     <div class="readouts">
@@ -50,10 +59,16 @@ function setControl(control) {
             :aria-label="led === 'red' ? 'Alarm' : led === 'green' ? 'No alarm' : 'No data'"></span>
     </div>
 
-    <SlideSwitch name="Control" v-bind="CONTROL" :value="s.control ?? null" :disabled="disabled || !state"
-                 @change="setControl" />
-    <SlideSwitch name="Power" v-bind="POWER" :value="s.power ?? null" :disabled="disabled || !state || inSync"
-                 :title="inSync ? 'Controlled by the sync switch' : ''"
+    <label class="source">
+      <span>Source</span>
+      <select :value="s.source ?? ''" :disabled="disabled || !state" :aria-label="`Source, channel ${channel}`"
+              @change="setSource">
+        <option v-if="s.source == null" value="" disabled>---</option>
+        <option v-for="src in SOURCES" :key="src" :value="src">{{ sourceLabel(src) }}</option>
+      </select>
+    </label>
+    <SlideSwitch name="Power" v-bind="POWER" :value="s.power ?? null" :disabled="disabled || !state || linked"
+                 :title="linked ? `Controlled by ${sourceLabel(s.source)}` : ''"
                  @change="(v) => emit('command', { power: v })" />
   </article>
 </template>

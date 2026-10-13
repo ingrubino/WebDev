@@ -66,7 +66,6 @@ browser ── WebSocket /mqtt ──> nginx (web) ──> mqtt:9001
 - Per guardare il traffico: `docker compose exec mqtt mosquitto_sub -t '#' -v` (funziona sempre, non serve nessuna porta).
 - Il broker non pubblica porte sull'host, così lo stack parte anche se sul computer c'è già un altro Mosquitto. Solo con `compose.dev.yml` la porta è pubblicata su `127.0.0.1:${MQTT_PORT}` (default 1884, perché la 1883 è spesso occupata da un Mosquitto locale) per usare `mosquitto_sub`/MQTT Explorer dal Mac.
 - `DEVICE_BUS=emulator` (default) simula i dispositivi; log con `docker compose logs -f canbus`.
-- `SYNC_POWER=off` (default) oppure `on`: stato del pulsante Sync della pagina SCADA quando parte il gateway. Dopo averlo cambiato in `.env`: `docker compose up -d canbus`.
 - `mqtt` è un'immagine pronta, quindi `docker-bake.hcl` non cambia.
 
 ### Bus CAN reale (in futuro)
